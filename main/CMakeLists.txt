@@ -1,0 +1,11 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "src/app.c"
+        "src/board_hal.c"
+        "src/modem_4g.c"
+        "src/net_eth.c"
+        "src/storage_sd.c"
+    INCLUDE_DIRS
+        "include"
+)
