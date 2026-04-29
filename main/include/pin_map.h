@@ -1,6 +1,8 @@
 #pragma once
 
 #include "driver/gpio.h"
+#include "driver/spi_master.h"
+#include "driver/uart.h"
 
 /*
  * Pin mapping extracted from NFC红绿灯控制系统V1.0.pdf
@@ -29,12 +31,17 @@
 #define PIN_I2C1_SCL              GPIO_NUM_47
 #define I2C_PORT                  I2C_NUM_0
 #define I2C_FREQ_HZ               100000
-#define PCF8574_ADDR              0x21
+#define PCF8574_ADDR              0x20
 
 /* PN532 (HSU UART) */
 #define NFC_UART_PORT             UART_NUM_1
-#define PIN_NFC_TX                GPIO_NUM_48 /* MCU TX -> PN532 RX */
-#define PIN_NFC_RX                GPIO_NUM_45 /* MCU RX <- PN532 TX */
+/*
+ * Runtime bring-up verified this UART direction:
+ * - ESP32 GPIO45 is UART TX to PN532 HSU_RX
+ * - ESP32 GPIO48 is UART RX from PN532 HSU_TX
+ */
+#define PIN_NFC_TX                GPIO_NUM_45 /* MCU TX -> PN532 HSU_RX */
+#define PIN_NFC_RX                GPIO_NUM_48 /* MCU RX <- PN532 HSU_TX */
 #define NFC_UART_BAUD             115200
 
 /* W5500 SPI Ethernet signals */
@@ -44,6 +51,10 @@
 #define PIN_W5500_SCLK            GPIO_NUM_7
 #define PIN_W5500_CS              GPIO_NUM_17
 #define PIN_W5500_RST             GPIO_NUM_18
+#define W5500_SPI_HOST            SPI2_HOST
+#define W5500_SPI_CLOCK_HZ        (8 * 1000 * 1000)
+#define W5500_SPI_PROBE_CLOCK_HZ  (1 * 1000 * 1000)
+#define W5500_PHY_ADDR            1
 
 /* 4G module control lines (AIR780ER) */
 #define PIN_4G_PWRKEY             GPIO_NUM_39

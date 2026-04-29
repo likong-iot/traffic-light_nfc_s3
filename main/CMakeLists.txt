@@ -4,8 +4,20 @@ idf_component_register(
         "src/app.c"
         "src/board_hal.c"
         "src/modem_4g.c"
+        "src/nfc_pn532.c"
         "src/net_eth.c"
         "src/storage_sd.c"
     INCLUDE_DIRS
         "include"
+    REQUIRES
+        nvs_flash
+        esp_event
+        esp_netif
+        esp_eth
+        driver
+        fatfs
+        sdmmc
+        i2cdev
+        pcf8574
+        iot_usbh_modem
 )
