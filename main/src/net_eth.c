@@ -24,6 +24,8 @@ static bool s_isr_installed = false;
 static esp_eth_handle_t s_eth_handle = NULL;
 static esp_eth_netif_glue_handle_t s_eth_glue = NULL;
 static esp_netif_t *s_eth_netif = NULL;
+static gpio_num_t s_selected_mosi = PIN_W5500_MOSI;
+static gpio_num_t s_selected_miso = PIN_W5500_MISO;
 
 static spi_device_interface_config_t s_devcfg = {
     .command_bits = 0,
@@ -157,6 +159,118 @@ static esp_err_t w5500_probe_select_clock(int *selected_clock_hz)
     return ESP_FAIL;
 }
 
+typedef struct {
+    const char *name;
+    gpio_num_t mosi;
+    gpio_num_t miso;
+} w5500_spi_pin_candidate_t;
+
+static void w5500_log_pin_levels(const char *stage, gpio_num_t mosi, gpio_num_t miso)
+{
+    ESP_LOGI(TAG, "       %s: CS(GPIO%d)=%d RST(GPIO%d)=%d INT(GPIO%d)=%d MOSI(GPIO%d)=%d MISO(GPIO%d)=%d SCLK(GPIO%d)=%d",
+             stage,
+             PIN_W5500_CS, gpio_get_level(PIN_W5500_CS),
+             PIN_W5500_RST, gpio_get_level(PIN_W5500_RST),
+             PIN_W5500_INT, gpio_get_level(PIN_W5500_INT),
+             mosi, gpio_get_level(mosi),
+             miso, gpio_get_level(miso),
+             PIN_W5500_SCLK, gpio_get_level(PIN_W5500_SCLK));
+}
+
+static void w5500_gpio_drive_test(gpio_num_t gpio, const char *name)
+{
+    gpio_reset_pin(gpio);
+    gpio_set_direction(gpio, GPIO_MODE_OUTPUT);
+    gpio_set_level(gpio, 1);
+    vTaskDelay(pdMS_TO_TICKS(2));
+    int high = gpio_get_level(gpio);
+    gpio_set_level(gpio, 0);
+    vTaskDelay(pdMS_TO_TICKS(2));
+    int low = gpio_get_level(gpio);
+    gpio_set_level(gpio, 1);
+    vTaskDelay(pdMS_TO_TICKS(2));
+    int high_again = gpio_get_level(gpio);
+
+    ESP_LOGI(TAG, "       GPIO drive test %s(GPIO%d): set1->%d set0->%d set1->%d",
+             name, gpio, high, low, high_again);
+    if (high == 0 || high_again == 0 || low != 0) {
+        ESP_LOGW(TAG, "       GPIO%d (%s) does not follow output drive; check short, wrong pin, or external circuit",
+                 gpio, name);
+    }
+}
+
+static esp_err_t w5500_spi_bus_init(gpio_num_t mosi, gpio_num_t miso)
+{
+    spi_bus_config_t buscfg = {
+        .mosi_io_num = mosi,
+        .miso_io_num = miso,
+        .sclk_io_num = PIN_W5500_SCLK,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = 0,
+    };
+    return spi_bus_initialize(W5500_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO);
+}
+
+static esp_err_t w5500_probe_select_pins_and_clock(int *selected_clock_hz)
+{
+    const w5500_spi_pin_candidate_t candidates[] = {
+        {
+            .name = "pin_map",
+            .mosi = PIN_W5500_MOSI,
+            .miso = PIN_W5500_MISO,
+        },
+        {
+            .name = "mosi_miso_swapped",
+            .mosi = PIN_W5500_MISO,
+            .miso = PIN_W5500_MOSI,
+        },
+    };
+
+    gpio_reset_pin(PIN_W5500_CS);
+    gpio_set_direction(PIN_W5500_CS, GPIO_MODE_OUTPUT);
+    gpio_set_level(PIN_W5500_CS, 1);
+    gpio_reset_pin(PIN_W5500_INT);
+    gpio_set_direction(PIN_W5500_INT, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(PIN_W5500_INT, GPIO_PULLUP_ONLY);
+    w5500_gpio_drive_test(PIN_W5500_CS, "SCSn");
+    w5500_gpio_drive_test(PIN_W5500_RST, "RSTn");
+
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i) {
+        ESP_LOGI(TAG, "       SPI pin candidate '%s': MOSI=GPIO%d MISO=GPIO%d SCLK=GPIO%d CS=GPIO%d",
+                 candidates[i].name, candidates[i].mosi, candidates[i].miso,
+                 PIN_W5500_SCLK, PIN_W5500_CS);
+        esp_err_t err = w5500_spi_bus_init(candidates[i].mosi, candidates[i].miso);
+        if (err == ESP_ERR_INVALID_STATE) {
+            ESP_LOGW(TAG, "       SPI bus already initialized; freeing and retrying candidate '%s'", candidates[i].name);
+            spi_bus_free(W5500_SPI_HOST);
+            err = w5500_spi_bus_init(candidates[i].mosi, candidates[i].miso);
+        }
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "       SPI bus init failed for '%s': %s", candidates[i].name, esp_err_to_name(err));
+            continue;
+        }
+
+        gpio_set_level(PIN_W5500_CS, 1);
+        gpio_set_level(PIN_W5500_RST, 1);
+        vTaskDelay(pdMS_TO_TICKS(2));
+        w5500_log_pin_levels("pin levels before probe", candidates[i].mosi, candidates[i].miso);
+        err = w5500_probe_select_clock(selected_clock_hz);
+        if (err == ESP_OK) {
+            s_selected_mosi = candidates[i].mosi;
+            s_selected_miso = candidates[i].miso;
+            ESP_LOGI(TAG, "       W5500 ready with SPI pin candidate '%s'", candidates[i].name);
+            return ESP_OK;
+        }
+
+        ESP_LOGW(TAG, "       W5500 probe failed with SPI pin candidate '%s': %s",
+                 candidates[i].name, esp_err_to_name(err));
+        spi_bus_free(W5500_SPI_HOST);
+    }
+
+    return ESP_FAIL;
+}
+
 static void on_eth_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     (void)arg;
@@ -217,29 +331,16 @@ esp_err_t net_eth_init(void)
 
     ESP_LOGI(TAG, "=== W5500 Ethernet init start ===");
 
-    /* Step 1: SPI2 bus */
-    ESP_LOGI(TAG, "[1/7] SPI bus init: host=%d  MOSI=GPIO%d  MISO=GPIO%d  SCLK=GPIO%d  DMA=auto",
-             W5500_SPI_HOST, PIN_W5500_MOSI, PIN_W5500_MISO, PIN_W5500_SCLK);
-    spi_bus_config_t buscfg = {
-        .mosi_io_num = PIN_W5500_MOSI,
-        .miso_io_num = PIN_W5500_MISO,
-        .sclk_io_num = PIN_W5500_SCLK,
-        .quadwp_io_num = -1,
-        .quadhd_io_num = -1,
-        .max_transfer_sz = 0,
-    };
-    ESP_RETURN_ON_ERROR(spi_bus_initialize(W5500_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO),
-                        TAG, "W5500 SPI bus init failed");
-    ESP_LOGI(TAG, "[1/7] SPI bus initialized OK");
-
-    /* Step 2: W5500 SPI probe + device config */
-    ESP_LOGI(TAG, "[2/7] W5500 SPI probe: CS=GPIO%d  RST=GPIO%d", PIN_W5500_CS, PIN_W5500_RST);
+    /* Step 1/2: SPI2 bus + W5500 SPI probe */
+    ESP_LOGI(TAG, "[1/7] SPI2 bus + W5500 probe: host=%d  pin_map MOSI=GPIO%d MISO=GPIO%d SCLK=GPIO%d CS=GPIO%d RST=GPIO%d",
+             W5500_SPI_HOST, PIN_W5500_MOSI, PIN_W5500_MISO,
+             PIN_W5500_SCLK, PIN_W5500_CS, PIN_W5500_RST);
     int selected_clock_hz = W5500_SPI_PROBE_CLOCK_HZ;
-    ESP_RETURN_ON_ERROR(w5500_probe_select_clock(&selected_clock_hz), TAG, "W5500 SPI probe failed");
+    ESP_RETURN_ON_ERROR(w5500_probe_select_pins_and_clock(&selected_clock_hz), TAG, "W5500 SPI probe failed");
     s_devcfg.clock_speed_hz = selected_clock_hz;
 
-    ESP_LOGI(TAG, "[2/7] W5500 SPI device config: CS=GPIO%d  INT=GPIO%d  clock=%d Hz  mode=0  queue=20",
-             PIN_W5500_CS, PIN_W5500_INT, selected_clock_hz);
+    ESP_LOGI(TAG, "[2/7] W5500 SPI device config: MOSI=GPIO%d  MISO=GPIO%d  CS=GPIO%d  INT=GPIO%d  clock=%d Hz  mode=0  queue=20",
+             s_selected_mosi, s_selected_miso, PIN_W5500_CS, PIN_W5500_INT, selected_clock_hz);
     eth_w5500_config_t w5500_cfg = ETH_W5500_DEFAULT_CONFIG(W5500_SPI_HOST, &s_devcfg);
     w5500_cfg.int_gpio_num = PIN_W5500_INT;
     ESP_LOGI(TAG, "[2/7] W5500 SPI device config set");

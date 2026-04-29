@@ -1,6 +1,10 @@
 #include "storage_sd.h"
 
+#include <dirent.h>
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "driver/gpio.h"
 #include "driver/sdmmc_host.h"
@@ -153,6 +157,124 @@ static esp_err_t mount_sdmmc_1bit(void)
     return ESP_OK;
 }
 
+static esp_err_t storage_sd_rw_self_test(void)
+{
+    char path[64];
+    /*
+     * sdkconfig currently has CONFIG_FATFS_LFN_NONE=y, so keep the test file
+     * in 8.3 format. This should show up on a PC as SDTEST.TXT.
+     */
+    int path_len = snprintf(path, sizeof(path), "%s/SDTEST.TXT", MOUNT_POINT);
+    if (path_len < 0 || path_len >= (int)sizeof(path)) {
+        ESP_LOGE(TAG, "SD R/W self-test path format failed");
+        return ESP_FAIL;
+    }
+
+    char expected[160];
+    int written = snprintf(expected, sizeof(expected),
+                           "traffic-light_nfc_s3 SD read/write self-test\r\n"
+                           "mount=%s\r\n"
+                           "tick_ms=%lu\r\n",
+                           MOUNT_POINT,
+                           (unsigned long)(xTaskGetTickCount() * portTICK_PERIOD_MS));
+    if (written < 0 || written >= (int)sizeof(expected)) {
+        ESP_LOGE(TAG, "SD R/W self-test payload format failed");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "[R/W] Creating test file: %s", path);
+    FILE *f = fopen(path, "w");
+    if (f == NULL) {
+        ESP_LOGE(TAG, "[R/W] fopen('%s','w') failed: errno=%d (%s)",
+                 path, errno, strerror(errno));
+        return ESP_FAIL;
+    }
+
+    size_t expected_len = strlen(expected);
+    size_t write_len = fwrite(expected, 1, expected_len, f);
+    if (write_len != expected_len) {
+        ESP_LOGE(TAG, "[R/W] fwrite failed: wrote=%u expected=%u errno=%d (%s)",
+                 (unsigned)write_len, (unsigned)expected_len, errno, strerror(errno));
+        fclose(f);
+        return ESP_FAIL;
+    }
+
+    if (fflush(f) != 0) {
+        ESP_LOGE(TAG, "[R/W] fflush failed: errno=%d (%s)", errno, strerror(errno));
+        fclose(f);
+        return ESP_FAIL;
+    }
+
+    int fd = fileno(f);
+    if (fd >= 0 && fsync(fd) != 0) {
+        ESP_LOGE(TAG, "[R/W] fsync failed: errno=%d (%s)", errno, strerror(errno));
+        fclose(f);
+        return ESP_FAIL;
+    }
+
+    if (fclose(f) != 0) {
+        ESP_LOGE(TAG, "[R/W] fclose after write failed: errno=%d (%s)", errno, strerror(errno));
+        return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, "[R/W] Write OK: %u bytes", (unsigned)expected_len);
+
+    ESP_LOGI(TAG, "[R/W] Re-opening test file for readback");
+    f = fopen(path, "r");
+    if (f == NULL) {
+        ESP_LOGE(TAG, "[R/W] fopen('%s','r') failed: errno=%d (%s)",
+                 path, errno, strerror(errno));
+        return ESP_FAIL;
+    }
+
+    char actual[sizeof(expected)] = {0};
+    size_t read_len = fread(actual, 1, sizeof(actual) - 1, f);
+    if (ferror(f)) {
+        ESP_LOGE(TAG, "[R/W] fread failed: errno=%d (%s)", errno, strerror(errno));
+        fclose(f);
+        return ESP_FAIL;
+    }
+    if (fclose(f) != 0) {
+        ESP_LOGE(TAG, "[R/W] fclose after read failed: errno=%d (%s)", errno, strerror(errno));
+        return ESP_FAIL;
+    }
+    actual[read_len] = '\0';
+
+    if (read_len != expected_len || strcmp(actual, expected) != 0) {
+        ESP_LOGE(TAG, "[R/W] Readback mismatch: read=%u expected=%u",
+                 (unsigned)read_len, (unsigned)expected_len);
+        ESP_LOGE(TAG, "[R/W] Expected: %s", expected);
+        ESP_LOGE(TAG, "[R/W] Actual: %s", actual);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    ESP_LOGI(TAG, "[R/W] Readback OK: %u bytes matched", (unsigned)read_len);
+    ESP_LOGI(TAG, "[R/W] SD card read/write self-test PASSED");
+    return ESP_OK;
+}
+
+static void storage_sd_log_root_dir(void)
+{
+    DIR *dir = opendir(MOUNT_POINT);
+    if (dir == NULL) {
+        ESP_LOGW(TAG, "Could not open SD root '%s' for listing: errno=%d (%s)",
+                 MOUNT_POINT, errno, strerror(errno));
+        return;
+    }
+
+    ESP_LOGI(TAG, "SD root directory listing:");
+    struct dirent *entry = NULL;
+    int count = 0;
+    while ((entry = readdir(dir)) != NULL) {
+        ESP_LOGI(TAG, "  %s", entry->d_name);
+        ++count;
+    }
+    closedir(dir);
+
+    if (count == 0) {
+        ESP_LOGI(TAG, "  <empty>");
+    }
+}
+
 esp_err_t storage_sd_init(void)
 {
     if (s_mounted) {
@@ -184,6 +306,18 @@ esp_err_t storage_sd_init(void)
     ESP_LOGI(TAG, "       Sector size:   %u B", s_card->csd.sector_size);
     ESP_LOGI(TAG, "       CSD ver:       %d", s_card->csd.csd_ver);
     sdmmc_card_print_info(stdout, s_card);
+
+    err = storage_sd_rw_self_test();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "SD read/write self-test failed: %s (0x%x)", esp_err_to_name(err), err);
+        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_vfs_fat_sdcard_unmount(MOUNT_POINT, s_card));
+        s_card = NULL;
+        s_mounted = false;
+        ESP_LOGE(TAG, "=== SD card init FAILED ===");
+        return err;
+    }
+    storage_sd_log_root_dir();
+
     ESP_LOGI(TAG, "=== SD card init done ===");
     return ESP_OK;
 }

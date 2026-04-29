@@ -7,6 +7,8 @@
 #include "esp_check.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "i2cdev.h"
 #include "pcf8574.h"
 #include "pin_map.h"
@@ -180,5 +182,46 @@ esp_err_t board_hal_read_inputs(board_inputs_t *inputs)
     inputs->key2 = gpio_get_level(PIN_KEY2);
     inputs->sd_det = gpio_get_level(PIN_SD_DET);
     inputs->eth_int = gpio_get_level(PIN_W5500_INT);
+    return ESP_OK;
+}
+
+esp_err_t board_hal_pulse_io_out1(int pulse_count, int high_ms, int low_gap_ms)
+{
+    if (pulse_count <= 0 || high_ms <= 0 || low_gap_ms < 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "IO_OUT1 pulse sequence: count=%d high=%d ms gap_low=%d ms",
+             pulse_count, high_ms, low_gap_ms);
+
+    esp_err_t err = gpio_set_level(PIN_IO_OUT1, 0);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "IO_OUT1 set idle LOW failed: %s", esp_err_to_name(err));
+        return err;
+    }
+    vTaskDelay(pdMS_TO_TICKS(5));
+
+    for (int i = 0; i < pulse_count; ++i) {
+        ESP_LOGI(TAG, "IO_OUT1 pulse %d/%d: HIGH %d ms", i + 1, pulse_count, high_ms);
+        err = gpio_set_level(PIN_IO_OUT1, 1);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "IO_OUT1 set HIGH failed: %s", esp_err_to_name(err));
+            return err;
+        }
+        vTaskDelay(pdMS_TO_TICKS(high_ms));
+
+        err = gpio_set_level(PIN_IO_OUT1, 0);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "IO_OUT1 set LOW failed: %s", esp_err_to_name(err));
+            return err;
+        }
+
+        if (i + 1 < pulse_count && low_gap_ms > 0) {
+            ESP_LOGI(TAG, "IO_OUT1 inter-pulse LOW gap %d ms", low_gap_ms);
+            vTaskDelay(pdMS_TO_TICKS(low_gap_ms));
+        }
+    }
+
+    ESP_LOGI(TAG, "IO_OUT1 pulse sequence done, final level LOW");
     return ESP_OK;
 }

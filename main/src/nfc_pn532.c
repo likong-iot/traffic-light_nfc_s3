@@ -2,23 +2,35 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "esp_check.h"
+#include "esp_err.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "pin_map.h"
 #include "pn532.h"
+#include "pn532_driver.h"
 #include "pn532_driver_hsu.h"
 
 static const char *TAG = "nfc_pn532";
 
 static pn532_io_t s_io = {0};
 static bool s_inited = false;
+static TaskHandle_t s_scan_task = NULL;
 
 #define PN532_INIT_RETRIES 5
 #define PN532_CANDIDATE_COUNT 1
+#define PN532_SCAN_TASK_STACK 4096
+#define PN532_SCAN_TASK_PRIORITY 4
+#define PN532_SCAN_TIMEOUT_MS 700
+#define PN532_SCAN_INTERVAL_MS 300
+#define PN532_NO_CARD_LOG_INTERVAL_MS 5000
+#define PN532_CARD_READ_TIMEOUT_MS 500
+#define PN532_MIFARE_CLASSIC_SECTOR1_BLOCK 4
+#define PN532_NTAG_COMMAND_PAGE 4
 
 typedef struct {
     gpio_num_t tx;
@@ -75,6 +87,227 @@ static esp_err_t try_hsu_candidate(const pn532_hsu_candidate_t *candidate)
              candidate->name, PN532_INIT_RETRIES);
     clear_driver();
     return err;
+}
+
+static void log_uid(const uint8_t *uid, uint8_t uid_length)
+{
+    char uid_text[3 * 10] = {0};
+    size_t pos = 0;
+
+    for (uint8_t i = 0; i < uid_length && pos < sizeof(uid_text); ++i) {
+        int n = snprintf(uid_text + pos, sizeof(uid_text) - pos,
+                         "%s%02X", i == 0 ? "" : ":", uid[i]);
+        if (n < 0 || n >= (int)(sizeof(uid_text) - pos)) {
+            break;
+        }
+        pos += (size_t)n;
+    }
+
+    ESP_LOGI(TAG, "[SCAN] ISO14443A card detected: UID length=%u  UID=%s",
+             uid_length, uid_text);
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, uid, uid_length, ESP_LOG_INFO);
+}
+
+static bool same_uid(const uint8_t *a, uint8_t a_len, const uint8_t *b, uint8_t b_len)
+{
+    return a_len == b_len && memcmp(a, b, a_len) == 0;
+}
+
+static esp_err_t pn532_data_exchange_tg1(const uint8_t *target_cmd,
+                                         uint8_t target_cmd_len,
+                                         uint8_t *response,
+                                         uint8_t *response_len,
+                                         int32_t timeout_ms)
+{
+    if (target_cmd == NULL || target_cmd_len == 0 || response == NULL || response_len == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t cmd[32] = {
+        PN532_COMMAND_INDATAEXCHANGE,
+        1,
+    };
+    if (target_cmd_len > sizeof(cmd) - 2) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    memcpy(cmd + 2, target_cmd, target_cmd_len);
+
+    esp_err_t err = pn532_send_command_wait_ack(&s_io, cmd, target_cmd_len + 2, PN532_WRITE_TIMEOUT);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = pn532_wait_ready(&s_io, timeout_ms);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    uint8_t packet[64] = {0};
+    err = pn532_read_data(&s_io, packet, sizeof(packet), PN532_READ_TIMEOUT);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    if (packet[0] != PN532_PREAMBLE || packet[1] != PN532_STARTCODE1 || packet[2] != PN532_STARTCODE2) {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    uint8_t length = packet[3];
+    uint8_t length_checksum = packet[4];
+    if (((length + length_checksum) & 0xFF) != 0) {
+        return ESP_ERR_INVALID_CRC;
+    }
+    if (length < 3 || packet[5] != PN532_PN532TOHOST || packet[6] != PN532_RESPONSE_INDATAEXCHANGE) {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    uint8_t status = packet[7];
+    if ((status & 0x3F) != 0) {
+        return ESP_FAIL;
+    }
+
+    uint8_t payload_len = length - 3;
+    if (payload_len > *response_len) {
+        payload_len = *response_len;
+    }
+    memcpy(response, packet + 8, payload_len);
+    *response_len = payload_len;
+    return ESP_OK;
+}
+
+static esp_err_t read_mifare_classic_sector1(uint8_t *uid,
+                                             uint8_t uid_length,
+                                             uint8_t *data,
+                                             uint8_t data_len)
+{
+    if (uid == NULL || uid_length < 4 || data == NULL || data_len < 16) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const uint8_t default_key_a[6] = {
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    };
+    const uint8_t *uid_auth = uid + uid_length - 4;
+    uint8_t auth_cmd[12] = {
+        MIFARE_CMD_AUTH_A,
+        PN532_MIFARE_CLASSIC_SECTOR1_BLOCK,
+    };
+    memcpy(auth_cmd + 2, default_key_a, sizeof(default_key_a));
+    memcpy(auth_cmd + 8, uid_auth, 4);
+
+    uint8_t response[16] = {0};
+    uint8_t response_len = sizeof(response);
+    esp_err_t err = pn532_data_exchange_tg1(auth_cmd, sizeof(auth_cmd),
+                                            response, &response_len,
+                                            PN532_CARD_READ_TIMEOUT_MS);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    const uint8_t read_cmd[2] = {
+        MIFARE_CMD_READ,
+        PN532_MIFARE_CLASSIC_SECTOR1_BLOCK,
+    };
+    response_len = data_len;
+    err = pn532_data_exchange_tg1(read_cmd, sizeof(read_cmd),
+                                  data, &response_len,
+                                  PN532_CARD_READ_TIMEOUT_MS);
+    if (err != ESP_OK) {
+        return err;
+    }
+    return response_len >= 16 ? ESP_OK : ESP_ERR_INVALID_SIZE;
+}
+
+static esp_err_t read_ntag_command_page(uint8_t *data, uint8_t data_len)
+{
+    if (data == NULL || data_len < 16) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return ntag2xx_read_page(&s_io, PN532_NTAG_COMMAND_PAGE, data, data_len);
+}
+
+static esp_err_t decode_command_value(const uint8_t *data, uint8_t *value)
+{
+    if (data == NULL || value == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (data[0] == '0' && data[1] >= '0' && data[1] <= '2') {
+        *value = data[1] - '0';
+        return ESP_OK;
+    }
+
+    if (data[0] == 0x00 && data[1] <= 0x02) {
+        *value = data[1];
+        return ESP_OK;
+    }
+
+    if (data[0] <= 0x02) {
+        *value = data[0];
+        return ESP_OK;
+    }
+
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+static void pn532_scan_task(void *arg)
+{
+    (void)arg;
+
+    ESP_LOGI(TAG, "[SCAN] PN532 card scan task started");
+    ESP_LOGI(TAG, "[SCAN] Present an ISO14443A card/tag near the PN532 antenna");
+
+    esp_err_t err = pn532_set_passive_activation_retries(&s_io, 0x01);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "[SCAN] set passive activation retries failed: %s (0x%x)",
+                 esp_err_to_name(err), err);
+    }
+
+    uint8_t last_uid[10] = {0};
+    uint8_t last_uid_len = 0;
+    uint32_t last_no_card_log_ms = 0;
+    bool card_present = false;
+
+    while (s_inited) {
+        uint8_t uid[10] = {0};
+        uint8_t uid_length = 0;
+        err = pn532_read_passive_target_id(&s_io,
+                                           PN532_BRTY_ISO14443A_106KBPS,
+                                           uid,
+                                           &uid_length,
+                                           PN532_SCAN_TIMEOUT_MS);
+
+        if (err == ESP_OK && uid_length > 0 && uid_length <= sizeof(uid)) {
+            if (!card_present || !same_uid(uid, uid_length, last_uid, last_uid_len)) {
+                log_uid(uid, uid_length);
+                memcpy(last_uid, uid, uid_length);
+                last_uid_len = uid_length;
+            }
+            card_present = true;
+        } else {
+            uint32_t now_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+            if (card_present) {
+                ESP_LOGI(TAG, "[SCAN] Card removed");
+                card_present = false;
+                last_uid_len = 0;
+                memset(last_uid, 0, sizeof(last_uid));
+            } else if (now_ms - last_no_card_log_ms >= PN532_NO_CARD_LOG_INTERVAL_MS) {
+                ESP_LOGI(TAG, "[SCAN] No ISO14443A card detected yet");
+                last_no_card_log_ms = now_ms;
+            }
+
+            if (err != ESP_OK && err != ESP_ERR_TIMEOUT && err != ESP_FAIL) {
+                ESP_LOGW(TAG, "[SCAN] pn532_read_passive_target_id failed: %s (0x%x)",
+                         esp_err_to_name(err), err);
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(PN532_SCAN_INTERVAL_MS));
+    }
+
+    ESP_LOGI(TAG, "[SCAN] PN532 card scan task stopped");
+    s_scan_task = NULL;
+    vTaskDelete(NULL);
 }
 
 esp_err_t nfc_pn532_init(void)
@@ -148,6 +381,85 @@ esp_err_t nfc_pn532_init(void)
     return ESP_OK;
 }
 
+esp_err_t nfc_pn532_start_card_scan(void)
+{
+    if (!s_inited) {
+        ESP_LOGW(TAG, "PN532 scan requested before init");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (s_scan_task != NULL) {
+        ESP_LOGI(TAG, "PN532 card scan task already running");
+        return ESP_OK;
+    }
+
+    BaseType_t ok = xTaskCreatePinnedToCore(pn532_scan_task,
+                                            "pn532_scan",
+                                            PN532_SCAN_TASK_STACK,
+                                            NULL,
+                                            PN532_SCAN_TASK_PRIORITY,
+                                            &s_scan_task,
+                                            tskNO_AFFINITY);
+    if (ok != pdPASS) {
+        s_scan_task = NULL;
+        ESP_LOGE(TAG, "Failed to create PN532 card scan task");
+        return ESP_ERR_NO_MEM;
+    }
+
+    ESP_LOGI(TAG, "PN532 card scan task created");
+    return ESP_OK;
+}
+
+esp_err_t nfc_pn532_read_card_command(nfc_card_command_t *card)
+{
+    if (card == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_inited) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    memset(card, 0, sizeof(*card));
+
+    esp_err_t err = pn532_read_passive_target_id(&s_io,
+                                                 PN532_BRTY_ISO14443A_106KBPS,
+                                                 card->uid,
+                                                 &card->uid_length,
+                                                 PN532_CARD_READ_TIMEOUT_MS);
+    if (err != ESP_OK) {
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    card->data_length = sizeof(card->data);
+    err = read_mifare_classic_sector1(card->uid, card->uid_length,
+                                      card->data, card->data_length);
+    if (err == ESP_OK) {
+        card->source = "mifare_classic_sector1_block4";
+    } else {
+        ESP_LOGW(TAG, "[CARD] Mifare Classic sector1 read failed: %s (0x%x); trying NTAG page %d",
+                 esp_err_to_name(err), err, PN532_NTAG_COMMAND_PAGE);
+        memset(card->data, 0, sizeof(card->data));
+        err = read_ntag_command_page(card->data, sizeof(card->data));
+        if (err != ESP_OK) {
+            return err;
+        }
+        card->source = "ntag_page4";
+    }
+
+    card->data_length = sizeof(card->data);
+    err = decode_command_value(card->data, &card->command_value);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "[CARD] Unsupported command bytes: %02X %02X",
+                 card->data[0], card->data[1]);
+        return err;
+    }
+
+    log_uid(card->uid, card->uid_length);
+    ESP_LOGI(TAG, "[CARD] source=%s data[0..1]=%02X %02X command=%u",
+             card->source, card->data[0], card->data[1], card->command_value);
+    return ESP_OK;
+}
+
 void nfc_pn532_deinit(void)
 {
     if (!s_inited) {
@@ -155,9 +467,12 @@ void nfc_pn532_deinit(void)
     }
 
     ESP_LOGI(TAG, "PN532 deinit...");
+    s_inited = false;
+    if (s_scan_task != NULL) {
+        vTaskDelay(pdMS_TO_TICKS(PN532_SCAN_TIMEOUT_MS + PN532_SCAN_INTERVAL_MS + 100));
+    }
     pn532_release(&s_io);
     pn532_delete_driver(&s_io);
     memset(&s_io, 0, sizeof(s_io));
-    s_inited = false;
     ESP_LOGI(TAG, "PN532 deinit done");
 }
