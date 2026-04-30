@@ -29,7 +29,7 @@ static const char *TAG = "app";
  * start its background state machine while PN532/SD/IO tests are being run.
  */
 #ifndef APP_ENABLE_4G_MODEM
-#define APP_ENABLE_4G_MODEM 0
+#define APP_ENABLE_4G_MODEM 1
 #endif
 
 #define APP_WORK_TASK_STACK      8192

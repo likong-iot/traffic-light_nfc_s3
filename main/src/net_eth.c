@@ -177,28 +177,6 @@ static void w5500_log_pin_levels(const char *stage, gpio_num_t mosi, gpio_num_t 
              PIN_W5500_SCLK, gpio_get_level(PIN_W5500_SCLK));
 }
 
-static void w5500_gpio_drive_test(gpio_num_t gpio, const char *name)
-{
-    gpio_reset_pin(gpio);
-    gpio_set_direction(gpio, GPIO_MODE_OUTPUT);
-    gpio_set_level(gpio, 1);
-    vTaskDelay(pdMS_TO_TICKS(2));
-    int high = gpio_get_level(gpio);
-    gpio_set_level(gpio, 0);
-    vTaskDelay(pdMS_TO_TICKS(2));
-    int low = gpio_get_level(gpio);
-    gpio_set_level(gpio, 1);
-    vTaskDelay(pdMS_TO_TICKS(2));
-    int high_again = gpio_get_level(gpio);
-
-    ESP_LOGI(TAG, "       GPIO drive test %s(GPIO%d): set1->%d set0->%d set1->%d",
-             name, gpio, high, low, high_again);
-    if (high == 0 || high_again == 0 || low != 0) {
-        ESP_LOGW(TAG, "       GPIO%d (%s) does not follow output drive; check short, wrong pin, or external circuit",
-                 gpio, name);
-    }
-}
-
 static esp_err_t w5500_spi_bus_init(gpio_num_t mosi, gpio_num_t miso)
 {
     spi_bus_config_t buscfg = {
@@ -233,8 +211,6 @@ static esp_err_t w5500_probe_select_pins_and_clock(int *selected_clock_hz)
     gpio_reset_pin(PIN_W5500_INT);
     gpio_set_direction(PIN_W5500_INT, GPIO_MODE_INPUT);
     gpio_set_pull_mode(PIN_W5500_INT, GPIO_PULLUP_ONLY);
-    w5500_gpio_drive_test(PIN_W5500_CS, "SCSn");
-    w5500_gpio_drive_test(PIN_W5500_RST, "RSTn");
 
     for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i) {
         ESP_LOGI(TAG, "       SPI pin candidate '%s': MOSI=GPIO%d MISO=GPIO%d SCLK=GPIO%d CS=GPIO%d",
