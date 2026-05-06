@@ -6,6 +6,7 @@ idf_component_register(
         "src/modem_4g.c"
         "src/nfc_pn532.c"
         "src/net_eth.c"
+        "src/peripheral_test.c"
         "src/storage_sd.c"
     INCLUDE_DIRS
         "include"
@@ -16,6 +17,7 @@ idf_component_register(
         esp_eth
         driver
         fatfs
+        lwip
         sdmmc
         i2cdev
         pcf8574

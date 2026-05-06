@@ -103,13 +103,7 @@ static void prepare_sd_bus_pins(void)
      */
     ESP_ERROR_CHECK_WITHOUT_ABORT(config_input_pullup(PIN_SD_DET));
 
-    config_bus_inputs(GPIO_PULLUP_DISABLE);
-    vTaskDelay(pdMS_TO_TICKS(500));
-    log_sd_pin_levels("SD pin levels with MCU pulls disabled");
-
     config_bus_inputs(GPIO_PULLUP_ENABLE);
-    vTaskDelay(pdMS_TO_TICKS(50));
-    log_sd_pin_levels("SD pin levels with MCU internal pull-ups enabled");
 }
 
 static esp_err_t mount_sdmmc_1bit(void)
@@ -307,18 +301,25 @@ esp_err_t storage_sd_init(void)
     ESP_LOGI(TAG, "       CSD ver:       %d", s_card->csd.csd_ver);
     sdmmc_card_print_info(stdout, s_card);
 
-    err = storage_sd_rw_self_test();
+    ESP_LOGI(TAG, "=== SD card init done (self-test deferred) ===");
+    return ESP_OK;
+}
+
+esp_err_t storage_sd_self_test(void)
+{
+    if (!s_mounted) {
+        ESP_LOGW(TAG, "SD self-test skipped: card is not mounted");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    ESP_LOGI(TAG, "=== SD card self-test start ===");
+    esp_err_t err = storage_sd_rw_self_test();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "SD read/write self-test failed: %s (0x%x)", esp_err_to_name(err), err);
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_vfs_fat_sdcard_unmount(MOUNT_POINT, s_card));
-        s_card = NULL;
-        s_mounted = false;
-        ESP_LOGE(TAG, "=== SD card init FAILED ===");
         return err;
     }
     storage_sd_log_root_dir();
-
-    ESP_LOGI(TAG, "=== SD card init done ===");
+    ESP_LOGI(TAG, "=== SD card self-test done ===");
     return ESP_OK;
 }
 

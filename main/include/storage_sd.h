@@ -6,5 +6,6 @@
 
 esp_err_t storage_sd_init(void);
 esp_err_t storage_sd_deinit(void);
+esp_err_t storage_sd_self_test(void);
 bool storage_sd_is_mounted(void);
 const char *storage_sd_mount_point(void);

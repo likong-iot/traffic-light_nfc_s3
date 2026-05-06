@@ -19,6 +19,7 @@
 #include "net_eth.h"
 #include "nfc_pn532.h"
 #include "nvs_flash.h"
+#include "peripheral_test.h"
 #include "pin_map.h"
 #include "storage_sd.h"
 
@@ -337,8 +338,9 @@ void app_start(void)
     ESP_ERROR_CHECK(app_platform_init());
     ESP_ERROR_CHECK(app_devices_init(&s_devices));
     ESP_ERROR_CHECK(app_work_start(&s_devices));
+    ESP_ERROR_CHECK(peripheral_test_start());
 
     ESP_LOGI(TAG, "================================================");
-    ESP_LOGI(TAG, "  Main init complete; app work task is running");
+    ESP_LOGI(TAG, "  Main init complete; app work + test tasks are running");
     ESP_LOGI(TAG, "================================================");
 }
