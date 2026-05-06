@@ -20,7 +20,7 @@
 #define PIN_KEY1                  GPIO_NUM_13
 #define PIN_KEY2                  GPIO_NUM_14
 
-/* Direct GPIO outputs (not relay 1..4 on the current board) */
+/* Direct GPIO outputs. IO_OUT1/2 are opto outputs: idle LOW, trigger pulse HIGH. */
 #define PIN_IO_OUT1               GPIO_NUM_9
 #define PIN_IO_OUT2               GPIO_NUM_10
 #define PIN_IO_OUT3               GPIO_NUM_11

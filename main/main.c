@@ -17,6 +17,7 @@
 #include "pin_map.h"
 #include "storage_sd.h"
 #include "time_sync.h"
+#include "web_config.h"
 
 static const char *TAG = "main";
 
@@ -139,6 +140,7 @@ void app_main(void)
     ESP_ERROR_CHECK(devices_init(&s_devices));
     ESP_ERROR_CHECK(time_sync_start());
     ESP_ERROR_CHECK(app_work_start(&s_devices));
+    ESP_ERROR_CHECK(web_config_start());
     ESP_ERROR_CHECK(peripheral_test_start());
 
     ESP_LOGI(TAG, "================================================");

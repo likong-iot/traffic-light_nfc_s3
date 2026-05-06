@@ -18,8 +18,8 @@ static i2c_dev_t s_pcf_dev = {0};
 static bool s_pcf_ready = false;
 static uint8_t s_pcf_port_state = 0xFF;
 
-#define OPTO_INACTIVE_LEVEL 1
-#define OPTO_ACTIVE_LEVEL   0
+#define OPTO_INACTIVE_LEVEL 0
+#define OPTO_ACTIVE_LEVEL   1
 
 static esp_err_t config_output(gpio_num_t pin, int level)
 {
@@ -111,11 +111,11 @@ esp_err_t board_hal_init(void)
              PIN_LED1, LED_ACTIVE_LEVEL);
     ESP_RETURN_ON_ERROR(config_output(PIN_LED1, !LED_ACTIVE_LEVEL), TAG, "LED1 failed");
 
-    /* Step 2: Direct GPIO outputs. Relays 1..4 are driven by PCF8574 P0..P3. */
-    ESP_LOGI(TAG, "[2/5] Direct GPIO outputs: IO_OUT1=GPIO%d  IO_OUT2=GPIO%d  IO_OUT3=GPIO%d  IO_OUT4=GPIO%d  (default HIGH)",
+    /* Step 2: Direct GPIO outputs. OPTO1/2 idle low; relays 1..4 are driven by PCF8574 P0..P3. */
+    ESP_LOGI(TAG, "[2/5] Direct GPIO outputs: OPTO1/IO_OUT1=GPIO%d  OPTO2/IO_OUT2=GPIO%d  IO_OUT3=GPIO%d  IO_OUT4=GPIO%d  (OPTO1/2 default LOW)",
              PIN_IO_OUT1, PIN_IO_OUT2, PIN_IO_OUT3, PIN_IO_OUT4);
-    ESP_RETURN_ON_ERROR(config_output(PIN_IO_OUT1, 1), TAG, "IO_OUT1 failed");
-    ESP_RETURN_ON_ERROR(config_output(PIN_IO_OUT2, 1), TAG, "IO_OUT2 failed");
+    ESP_RETURN_ON_ERROR(config_output(PIN_IO_OUT1, OPTO_INACTIVE_LEVEL), TAG, "IO_OUT1 failed");
+    ESP_RETURN_ON_ERROR(config_output(PIN_IO_OUT2, OPTO_INACTIVE_LEVEL), TAG, "IO_OUT2 failed");
     ESP_RETURN_ON_ERROR(config_output(PIN_IO_OUT3, 1), TAG, "IO_OUT3 failed");
     ESP_RETURN_ON_ERROR(config_output(PIN_IO_OUT4, 1), TAG, "IO_OUT4 failed");
 
@@ -153,8 +153,9 @@ void board_hal_log_map(void)
     ESP_LOGI(TAG, "--- Pin map ---");
     ESP_LOGI(TAG, "  LED1=GPIO%d (active=%d)", PIN_LED1, LED_ACTIVE_LEVEL);
     ESP_LOGI(TAG, "  KEY1=GPIO%d  KEY2=GPIO%d", PIN_KEY1, PIN_KEY2);
-    ESP_LOGI(TAG, "  IO_OUT1=GPIO%d  IO_OUT2=GPIO%d  IO_OUT3=GPIO%d  IO_OUT4=GPIO%d",
+    ESP_LOGI(TAG, "  OPTO1/IO_OUT1=GPIO%d  OPTO2/IO_OUT2=GPIO%d  IO_OUT3=GPIO%d  IO_OUT4=GPIO%d",
              PIN_IO_OUT1, PIN_IO_OUT2, PIN_IO_OUT3, PIN_IO_OUT4);
+    ESP_LOGI(TAG, "  OPTO1+OPTO2 default LOW, NFC trigger outputs active HIGH pulses");
     ESP_LOGI(TAG, "  RELAY1..4=PCF8574 P0..P3 (default pulled HIGH/released, LOW=closed)");
     ESP_LOGI(TAG, "  I2C SDA=GPIO%d  SCL=GPIO%d  PCF8574=0x%02X",
              PIN_I2C1_SDA, PIN_I2C1_SCL, PCF8574_ADDR);
@@ -199,7 +200,7 @@ esp_err_t board_hal_pulse_opto12(int pulse_count, int active_ms, int inactive_ga
         return ESP_ERR_INVALID_ARG;
     }
 
-    ESP_LOGI(TAG, "OPTO1+OPTO2 pulse sequence: count=%d active_low=%d ms release_gap=%d ms",
+    ESP_LOGI(TAG, "OPTO1+OPTO2 pulse sequence: count=%d active_high=%d ms low_gap=%d ms",
              pulse_count, active_ms, inactive_gap_ms);
 
     ESP_RETURN_ON_ERROR(gpio_set_level(PIN_IO_OUT1, OPTO_INACTIVE_LEVEL), TAG, "OPTO1 release failed");
@@ -207,7 +208,7 @@ esp_err_t board_hal_pulse_opto12(int pulse_count, int active_ms, int inactive_ga
     vTaskDelay(pdMS_TO_TICKS(5));
 
     for (int i = 0; i < pulse_count; ++i) {
-        ESP_LOGI(TAG, "OPTO1+OPTO2 pulse %d/%d: ACTIVE LOW %d ms",
+        ESP_LOGI(TAG, "OPTO1+OPTO2 pulse %d/%d: ACTIVE HIGH %d ms",
                  i + 1, pulse_count, active_ms);
         ESP_RETURN_ON_ERROR(gpio_set_level(PIN_IO_OUT1, OPTO_ACTIVE_LEVEL), TAG, "OPTO1 active failed");
         ESP_RETURN_ON_ERROR(gpio_set_level(PIN_IO_OUT2, OPTO_ACTIVE_LEVEL), TAG, "OPTO2 active failed");
@@ -217,12 +218,12 @@ esp_err_t board_hal_pulse_opto12(int pulse_count, int active_ms, int inactive_ga
         ESP_RETURN_ON_ERROR(gpio_set_level(PIN_IO_OUT2, OPTO_INACTIVE_LEVEL), TAG, "OPTO2 release failed");
 
         if (i + 1 < pulse_count && inactive_gap_ms > 0) {
-            ESP_LOGI(TAG, "OPTO1+OPTO2 inter-pulse HIGH gap %d ms", inactive_gap_ms);
+            ESP_LOGI(TAG, "OPTO1+OPTO2 inter-pulse LOW gap %d ms", inactive_gap_ms);
             vTaskDelay(pdMS_TO_TICKS(inactive_gap_ms));
         }
     }
 
-    ESP_LOGI(TAG, "OPTO1+OPTO2 pulse sequence done, final state HIGH / inactive");
+    ESP_LOGI(TAG, "OPTO1+OPTO2 pulse sequence done, final state LOW / inactive");
     return ESP_OK;
 }
 

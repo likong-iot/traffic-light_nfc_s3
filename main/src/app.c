@@ -126,10 +126,11 @@ static void app_work_task(void *arg)
 
     ESP_LOGI(TAG, "=== app work task started ===");
     ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_led1(true));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_all_relays(true));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(3, false));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(4, true));
     ESP_LOGI(TAG, "Work task owns NFC command loop, OPTO1+OPTO2 pulses, relay defaults, SD logging, and status");
     ESP_LOGI(TAG, "[work] NFC command rule: 00..05 => card class 1..6, OPTO1+OPTO2 pulse count 1..6");
-    ESP_LOGI(TAG, "[work] startup relay rule: relay1..4 default CLOSED; class 5 opens relay4");
+    ESP_LOGI(TAG, "[work] startup relay rule: relay1/2 schedule-controlled, relay3 RELEASED, relay4 CLOSED");
 
     uint8_t last_uid[10] = {0};
     uint8_t last_uid_len = 0;

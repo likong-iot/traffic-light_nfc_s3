@@ -9,12 +9,15 @@ idf_component_register(
         "src/peripheral_test.c"
         "src/storage_sd.c"
         "src/time_sync.c"
+        "src/web_config.c"
     INCLUDE_DIRS
         "include"
     REQUIRES
         nvs_flash
         esp_event
         esp_netif
+        esp_wifi
+        esp_http_server
         esp_eth
         driver
         fatfs

@@ -17,6 +17,12 @@ CONFIG_USBH_CDC_CONTROL_TRANSFER_BUFFER_SIZE=1024
 CONFIG_RTC_CLK_SRC_EXT_CRYS=y
 CONFIG_RTC_CLK_CAL_CYCLES=3000
 
+# The AP + web configuration server pulls in WiFi/HTTP support, so the app no
+# longer fits in ESP-IDF's default 1MB single-app partition. This board is
+# configured as 2MB flash; use the remaining flash space for the factory app.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
 # W5500 is initialized directly from pin_map.h, but keep Kconfig aligned for
 # components that inspect Ethernet defaults.
 CONFIG_ETH_TRANSMIT_MUTEX=y
