@@ -8,6 +8,7 @@ idf_component_register(
         "src/net_eth.c"
         "src/peripheral_test.c"
         "src/storage_sd.c"
+        "src/time_sync.c"
     INCLUDE_DIRS
         "include"
     REQUIRES
