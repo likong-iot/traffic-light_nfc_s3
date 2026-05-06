@@ -20,9 +20,10 @@ static const char *TAG = "app";
 #define APP_WORK_TASK_STACK      8192
 #define APP_WORK_TASK_PRIORITY   3
 #define APP_WORK_LOG_INTERVAL_MS 10000
-#define APP_NFC_POLL_INTERVAL_MS 300
+#define APP_NFC_POLL_INTERVAL_MS 100
 #define APP_IO_PULSE_HIGH_MS     50
 #define APP_IO_PULSE_LOW_GAP_MS  50
+#define APP_MAX_CARD_COMMAND     5
 
 static TaskHandle_t s_work_task = NULL;
 
@@ -124,8 +125,11 @@ static void app_work_task(void *arg)
     const app_devices_t *devices = (const app_devices_t *)arg;
 
     ESP_LOGI(TAG, "=== app work task started ===");
-    ESP_LOGI(TAG, "Work task owns NFC command loop, IO_OUT1 pulses, SD logging, and periodic status");
-    ESP_LOGI(TAG, "[work] NFC command rule: 00=>1 pulse, 01=>2 pulses, 02=>3 pulses");
+    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_led1(true));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_all_relays(true));
+    ESP_LOGI(TAG, "Work task owns NFC command loop, OPTO1+OPTO2 pulses, relay defaults, SD logging, and status");
+    ESP_LOGI(TAG, "[work] NFC command rule: 00..05 => card class 1..6, OPTO1+OPTO2 pulse count 1..6");
+    ESP_LOGI(TAG, "[work] startup relay rule: relay1..4 default CLOSED; class 5 opens relay4");
 
     uint8_t last_uid[10] = {0};
     uint8_t last_uid_len = 0;
@@ -138,15 +142,27 @@ static void app_work_task(void *arg)
             esp_err_t err = nfc_pn532_read_card_command(&card);
             if (err == ESP_OK) {
                 if (!card_latched || !same_card_uid(&card, last_uid, last_uid_len)) {
-                    int pulse_count = (int)card.command_value + 1;
-                    ESP_LOGI(TAG, "[work] NFC command %02u -> IO_OUT1 %d pulse(s)",
-                             card.command_value, pulse_count);
+                    if (card.command_value > APP_MAX_CARD_COMMAND) {
+                        ESP_LOGW(TAG, "[work] unsupported NFC command %u", card.command_value);
+                        app_log_nfc_event("card_cmd_unsupported", &card, ESP_ERR_NOT_SUPPORTED, 0);
+                        continue;
+                    }
+
+                    int card_class = (int)card.command_value + 1;
+                    int pulse_count = card_class;
+                    ESP_LOGI(TAG, "[work] NFC command %02u -> class %d: OPTO1+OPTO2 %d pulse(s)",
+                             card.command_value, card_class, pulse_count);
                     app_log_nfc_event("card_read", &card, ESP_OK, pulse_count);
 
-                    esp_err_t pulse_err = board_hal_pulse_io_out1(pulse_count,
-                                                                  APP_IO_PULSE_HIGH_MS,
-                                                                  APP_IO_PULSE_LOW_GAP_MS);
-                    app_log_nfc_event("io_out1_pulse", &card, pulse_err, pulse_count);
+                    esp_err_t pulse_err = board_hal_pulse_opto12(pulse_count,
+                                                                 APP_IO_PULSE_HIGH_MS,
+                                                                 APP_IO_PULSE_LOW_GAP_MS);
+                    app_log_nfc_event("opto12_pulse", &card, pulse_err, pulse_count);
+
+                    if (card_class == 5) {
+                        esp_err_t relay_err = board_hal_set_relay(4, false);
+                        app_log_nfc_event("relay4_open", &card, relay_err, 0);
+                    }
 
                     memcpy(last_uid, card.uid, card.uid_length);
                     last_uid_len = card.uid_length;
@@ -167,12 +183,6 @@ static void app_work_task(void *arg)
 
         uint32_t now_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
         if (now_ms - last_status_log_ms >= APP_WORK_LOG_INTERVAL_MS) {
-            board_inputs_t inputs = {0};
-            if (devices->board_ready && board_hal_read_inputs(&inputs) == ESP_OK) {
-                ESP_LOGI(TAG, "[work] inputs: KEY1=%d KEY2=%d SD_DET=%d ETH_INT=%d",
-                         inputs.key1, inputs.key2, inputs.sd_det, inputs.eth_int);
-            }
-
             ESP_LOGI(TAG, "[work] status: NFC=%s SD=%s ETH=%s 4G=%s",
                      devices->nfc_ready ? "ready" : "unavail",
                      storage_sd_is_mounted() ? "mounted" : "unmounted",

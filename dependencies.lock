@@ -123,8 +123,8 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 0.6.1
-  espressif/iot_usbh_cdc:
-    component_hash: 3cd0f9f63fba11ac2903b61d0497f19a39f2f0286e58e9d73286ea8edd0fade9
+  espressif/iot_eth:
+    component_hash: 2375af94aa38438e1411a8158ceda74e89170aa5b5b502371acdef4151be2a05
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -132,7 +132,21 @@ dependencies:
       version: '*'
     - name: idf
       require: private
-      version: '>=4.4.1'
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.0.0
+  espressif/iot_usbh_cdc:
+    component_hash: 6b30e8eeef1a3320a3bc0c27980c62826ed134b681be6f424366f3d78c291814
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.1'
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
     source:
       registry_url: https://components.espressif.com
       type: service
@@ -140,27 +154,29 @@ dependencies:
     - esp32s2
     - esp32s3
     - esp32p4
-    version: 2.0.1
+    version: 3.0.0
   espressif/iot_usbh_modem:
-    component_hash: 76752968d0cafe67cf29dc8aef8d7b4e8d08b5c5d9e977c942c07073251b660c
+    component_hash: 8d2ded2ef9b5e4f73472d8bc515439565411c9820b6f329dffcdc26cb5c9df80
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
       require: private
       version: 0.*
-    - name: espressif/esp_wifi_remote
+    - name: espressif/iot_eth
       registry_url: https://components.espressif.com
       require: private
-      rules:
-      - if: target in [esp32p4]
-      version: 0.*
+      version: '*'
     - name: idf
       require: private
-      version: '>=4.4.1'
+      version: '>=5.1'
     - name: espressif/iot_usbh_cdc
       registry_url: https://components.espressif.com
       require: private
-      version: 2.*
+      version: ^3.0
+    - name: espressif/modem_at
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
     source:
       registry_url: https://components.espressif.com/
       type: service
@@ -168,7 +184,7 @@ dependencies:
     - esp32s2
     - esp32s3
     - esp32p4
-    version: 1.2.0
+    version: 2.0.0
   espressif/lan865x:
     component_hash: ec3743fc2073fded3557d24f91a345dc389c5f78973411f0a71feddbcb85c6f0
     dependencies:
@@ -193,6 +209,20 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 1.0.0
+  espressif/modem_at:
+    component_hash: 86d8260760c5c41decd7a1d3bd3c3805c9be0174c60c502a074734b2342b406a
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.1.0
   garag/esp-idf-pn532:
     component_hash: aac8ca6ebb69a2b4e344991fa1764d2d298ae44bb90f308794a52bc8104c1d9f
     dependencies:
@@ -213,6 +243,6 @@ direct_dependencies:
 - espressif/iot_usbh_modem
 - garag/esp-idf-pn532
 - idf
-manifest_hash: 977a05a4585e9758831750725e6bba925896b7dd82cec90ac2baea84b1fac721
+manifest_hash: 5a6a4de6361bba64aba04dc9f888aa660e6dfc1e0c276370f8f146407244bb8f
 target: esp32s3
 version: 2.0.0

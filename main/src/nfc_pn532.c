@@ -232,17 +232,17 @@ static esp_err_t decode_command_value(const uint8_t *data, uint8_t *value)
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (data[0] == '0' && data[1] >= '0' && data[1] <= '2') {
+    if (data[0] == '0' && data[1] >= '0' && data[1] <= '5') {
         *value = data[1] - '0';
         return ESP_OK;
     }
 
-    if (data[0] == 0x00 && data[1] <= 0x02) {
+    if (data[0] == 0x00 && data[1] <= 0x05) {
         *value = data[1];
         return ESP_OK;
     }
 
-    if (data[0] <= 0x02) {
+    if (data[0] <= 0x05) {
         *value = data[0];
         return ESP_OK;
     }

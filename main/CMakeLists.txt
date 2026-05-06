@@ -22,5 +22,7 @@ idf_component_register(
         sdmmc
         i2cdev
         pcf8574
+        iot_usbh_cdc
         iot_usbh_modem
+        modem_at
 )

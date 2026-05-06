@@ -16,5 +16,5 @@ dependencies:
   #   public: true
   esp-idf-lib/pcf8574: '*'
   espressif/ethernet_init: ^0.6.1
-  espressif/iot_usbh_modem: ^1.2.0
+  espressif/iot_usbh_modem: ^2.0.0
   garag/esp-idf-pn532: '*'

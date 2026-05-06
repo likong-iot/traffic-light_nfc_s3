@@ -20,13 +20,18 @@
 #define PIN_KEY1                  GPIO_NUM_13
 #define PIN_KEY2                  GPIO_NUM_14
 
-/* Relay opto drive (IO_OUTx) */
+/* Direct GPIO outputs (not relay 1..4 on the current board) */
 #define PIN_IO_OUT1               GPIO_NUM_9
 #define PIN_IO_OUT2               GPIO_NUM_10
 #define PIN_IO_OUT3               GPIO_NUM_11
 #define PIN_IO_OUT4               GPIO_NUM_12
 
-/* I2C bus to PCF8574 */
+/*
+ * I2C bus to PCF8574.
+ * PCF8574 P0/P1/P2/P3 drive relay 1/2/3/4, active low:
+ * - LOW  = relay closed
+ * - HIGH = relay released / default pulled high
+ */
 #define PIN_I2C1_SDA              GPIO_NUM_21
 #define PIN_I2C1_SCL              GPIO_NUM_47
 #define I2C_PORT                  I2C_NUM_0

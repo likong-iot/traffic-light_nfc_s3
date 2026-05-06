@@ -239,7 +239,7 @@ static void peripheral_test_task(void *arg)
     }
 
     esp_netif_t *eth = wait_netif_ip("ETH_DEF", "W5500/ETH", TEST_WAIT_NETWORK_MS);
-    esp_netif_t *ppp = wait_netif_ip("PPP_DEF", "AIR780ER/PPP", TEST_WAIT_NETWORK_MS);
+    esp_netif_t *ppp = wait_netif_ip("USB PPP", "AIR780ER/PPP", TEST_WAIT_NETWORK_MS);
 
     ip_addr_t target_addr = {0};
     if (resolve_ping_target(&target_addr) == ESP_OK) {
