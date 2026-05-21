@@ -2,11 +2,14 @@ idf_component_register(
     SRCS
         "main.c"
         "src/app.c"
+        "src/app_config.c"
         "src/board_hal.c"
         "src/modem_4g.c"
         "src/nfc_pn532.c"
         "src/net_eth.c"
         "src/peripheral_test.c"
+        "src/radar_input.c"
+        "src/rtc_rx8025t.c"
         "src/storage_sd.c"
         "src/time_sync.c"
         "src/web_config.c"
@@ -18,6 +21,7 @@ idf_component_register(
         esp_netif
         esp_wifi
         esp_http_server
+        json
         esp_eth
         driver
         fatfs

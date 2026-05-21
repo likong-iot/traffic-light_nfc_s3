@@ -449,13 +449,13 @@ esp_err_t nfc_pn532_read_card_command(nfc_card_command_t *card)
     card->data_length = sizeof(card->data);
     err = decode_command_value(card->data, &card->command_value);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "[CARD] Unsupported command bytes: %02X %02X",
+        card->command_value = 0xFF;
+        ESP_LOGI(TAG, "[CARD] data[0..1]=%02X %02X is not a legacy 00..05 command; app_config will match raw data",
                  card->data[0], card->data[1]);
-        return err;
     }
 
     log_uid(card->uid, card->uid_length);
-    ESP_LOGI(TAG, "[CARD] source=%s data[0..1]=%02X %02X command=%u",
+    ESP_LOGI(TAG, "[CARD] source=%s data[0..1]=%02X %02X legacy_command=%u",
              card->source, card->data[0], card->data[1], card->command_value);
     return ESP_OK;
 }

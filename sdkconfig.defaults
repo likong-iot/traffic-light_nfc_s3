@@ -1,30 +1,26 @@
-# Disable the secondary USB Serial/JTAG console. GPIO19/GPIO20 are used by the
-# AIR780E USB OTG link, so the console must not claim the native USB peripheral.
+# 关闭第二路 USB Serial/JTAG 控制台。GPIO19/GPIO20 已被 AIR780E 的 USB OTG 占用，
+# 不能让控制台抢占原生 USB 外设。
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 
-# Match the AIR780E USB host needs.
+# 匹配 AIR780E 的 USB Host 需求。
 CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=2048
 CONFIG_USB_HOST_DEBOUNCE_DELAY_MS=500
 CONFIG_USB_HOST_RESET_HOLD_MS=100
 CONFIG_USB_HOST_RESET_RECOVERY_MS=100
 CONFIG_USB_HOST_SET_ADDR_RECOVERY_MS=50
 
-# iot_usbh_cdc 3.x option used by iot_usbh_modem 2.x.
+# `iot_usbh_modem` 2.x 依赖的 `iot_usbh_cdc` 3.x 选项。
 CONFIG_USBH_CDC_CONTROL_TRANSFER_BUFFER_SIZE=1024
 
-# GPIO15/GPIO16 have a 32.768 kHz RTC crystal. Use it as RTC_SLOW_CLK so the
-# system keeps better time after the 4G/SNTP synchronization completes.
-CONFIG_RTC_CLK_SRC_EXT_CRYS=y
-CONFIG_RTC_CLK_CAL_CYCLES=3000
+# 新版 PCB 使用外部 `RX8025T-UB` RTC，挂在 I2C 总线上。GPIO15 是它的 INT 引脚，
+# GPIO16 是 IO_IN1，所以这两个脚不能再拿去做 ESP32 的 RTC 慢时钟晶振。
 
-# The AP + web configuration server pulls in WiFi/HTTP support, so the app no
-# longer fits in ESP-IDF's default 1MB single-app partition. This board is
-# configured as 2MB flash; use the remaining flash space for the factory app.
+# AP + 网页配置服务会引入 WiFi/HTTP 支持，所以应用不再适合默认的 1MB 单应用分区。
+# 这块板子配置为 2MB Flash；请使用剩余空间作为 factory 应用。
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 
-# W5500 is initialized directly from pin_map.h, but keep Kconfig aligned for
-# components that inspect Ethernet defaults.
+# `W5500` 直接从 `pin_map.h` 初始化，但仍保留与 Kconfig 一致的以太网默认值。
 CONFIG_ETH_TRANSMIT_MUTEX=y
 CONFIG_ETHERNET_SPI_DEV0_W5500=y
 CONFIG_ETHERNET_SPI_SCLK_GPIO=7

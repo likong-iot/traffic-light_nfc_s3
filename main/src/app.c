@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "app_config.h"
 #include "board_hal.h"
 #include "esp_err.h"
 #include "esp_log.h"
@@ -23,7 +24,6 @@ static const char *TAG = "app";
 #define APP_NFC_POLL_INTERVAL_MS 100
 #define APP_IO_PULSE_HIGH_MS     50
 #define APP_IO_PULSE_LOW_GAP_MS  50
-#define APP_MAX_CARD_COMMAND     5
 
 static TaskHandle_t s_work_task = NULL;
 
@@ -125,11 +125,12 @@ static void app_work_task(void *arg)
     const app_devices_t *devices = (const app_devices_t *)arg;
 
     ESP_LOGI(TAG, "=== app work task started ===");
+    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_ledb(true));
     ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_led1(true));
     ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(3, false));
     ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(4, true));
-    ESP_LOGI(TAG, "Work task owns NFC command loop, OPTO1+OPTO2 pulses, relay defaults, SD logging, and status");
-    ESP_LOGI(TAG, "[work] NFC command rule: 00..05 => card class 1..6, OPTO1+OPTO2 pulse count 1..6");
+    ESP_LOGI(TAG, "Work task owns NFC command loop, OPTO1+OPTO2 pulses, LEDB/LED1 status, relay defaults, SD logging, and status");
+    ESP_LOGI(TAG, "[work] NFC command rules are loaded from app_config (SD -> NVS -> defaults)");
     ESP_LOGI(TAG, "[work] startup relay rule: relay1/2 schedule-controlled, relay3 RELEASED, relay4 CLOSED");
 
     uint8_t last_uid[10] = {0};
@@ -143,24 +144,25 @@ static void app_work_task(void *arg)
             esp_err_t err = nfc_pn532_read_card_command(&card);
             if (err == ESP_OK) {
                 if (!card_latched || !same_card_uid(&card, last_uid, last_uid_len)) {
-                    if (card.command_value > APP_MAX_CARD_COMMAND) {
-                        ESP_LOGW(TAG, "[work] unsupported NFC command %u", card.command_value);
-                        app_log_nfc_event("card_cmd_unsupported", &card, ESP_ERR_NOT_SUPPORTED, 0);
+                    app_nfc_rule_t rule = {0};
+                    esp_err_t match_err = app_config_find_nfc_action(card.data[0], card.data[1], &rule);
+                    if (match_err != ESP_OK) {
+                        ESP_LOGW(TAG, "[work] unsupported NFC data[0..1]=%02X %02X", card.data[0], card.data[1]);
+                        app_log_nfc_event("card_data_unsupported", &card, ESP_ERR_NOT_SUPPORTED, 0);
                         continue;
                     }
 
-                    int card_class = (int)card.command_value + 1;
-                    int pulse_count = card_class;
-                    ESP_LOGI(TAG, "[work] NFC command %02u -> class %d: OPTO1+OPTO2 %d pulse(s)",
-                             card.command_value, card_class, pulse_count);
-                    app_log_nfc_event("card_read", &card, ESP_OK, pulse_count);
+                    ESP_LOGI(TAG, "[work] NFC data[0..1]=%02X %02X matched '%s': OPTO1+OPTO2 %d pulse(s), relay4=%s",
+                             card.data[0], card.data[1], rule.name, rule.opto12_pulses,
+                             rule.open_relay4 ? "release" : "no-action");
+                    app_log_nfc_event("card_read", &card, ESP_OK, rule.opto12_pulses);
 
-                    esp_err_t pulse_err = board_hal_pulse_opto12(pulse_count,
+                    esp_err_t pulse_err = board_hal_pulse_opto12(rule.opto12_pulses,
                                                                  APP_IO_PULSE_HIGH_MS,
                                                                  APP_IO_PULSE_LOW_GAP_MS);
-                    app_log_nfc_event("opto12_pulse", &card, pulse_err, pulse_count);
+                    app_log_nfc_event("opto12_pulse", &card, pulse_err, rule.opto12_pulses);
 
-                    if (card_class == 5) {
+                    if (rule.open_relay4) {
                         esp_err_t relay_err = board_hal_set_relay(4, false);
                         app_log_nfc_event("relay4_open", &card, relay_err, 0);
                     }

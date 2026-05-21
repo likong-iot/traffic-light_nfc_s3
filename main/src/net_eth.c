@@ -20,6 +20,7 @@ static const char *TAG = "net_eth";
 
 static bool s_initialized = false;
 static bool s_link_up = false;
+static bool s_has_ip = false;
 static bool s_isr_installed = false;
 static esp_eth_handle_t s_eth_handle = NULL;
 static esp_eth_netif_glue_handle_t s_eth_glue = NULL;
@@ -206,12 +207,15 @@ static void on_eth_event(void *arg, esp_event_base_t base, int32_t id, void *dat
     case ETHERNET_EVENT_DISCONNECTED:
         ESP_LOGW(TAG, "W5500 link DOWN");
         s_link_up = false;
+        s_has_ip = false;
         break;
     case ETHERNET_EVENT_START:
         ESP_LOGI(TAG, "W5500 eth driver started (waiting for cable)");
         break;
     case ETHERNET_EVENT_STOP:
         ESP_LOGW(TAG, "W5500 eth driver stopped");
+        s_link_up = false;
+        s_has_ip = false;
         break;
     default:
         break;
@@ -220,12 +224,20 @@ static void on_eth_event(void *arg, esp_event_base_t base, int32_t id, void *dat
 
 static void on_got_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
-    (void)arg; (void)base; (void)id;
+    (void)arg; (void)base;
+
+    if (id == IP_EVENT_ETH_LOST_IP) {
+        ESP_LOGW(TAG, "W5500 lost IP");
+        s_has_ip = false;
+        return;
+    }
+
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)data;
     ESP_LOGI(TAG, "W5500 got IP:   " IPSTR, IP2STR(&event->ip_info.ip));
     ESP_LOGI(TAG, "       mask:    " IPSTR, IP2STR(&event->ip_info.netmask));
     ESP_LOGI(TAG, "       gateway: " IPSTR, IP2STR(&event->ip_info.gw));
     s_link_up = true;
+    s_has_ip = event->ip_info.ip.addr != 0;
 }
 
 static esp_err_t apply_efuse_mac(esp_eth_handle_t handle)
@@ -343,6 +355,7 @@ esp_err_t net_eth_init(void)
     ESP_LOGI(TAG, "[7/7] Registering ETH_EVENT and IP_EVENT_ETH_GOT_IP handlers...");
     ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &on_eth_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &on_got_ip, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_LOST_IP, &on_got_ip, NULL));
     ESP_LOGI(TAG, "[7/7] Event handlers registered OK");
 
     ESP_LOGI(TAG, "[7/7] esp_eth_start()...");
@@ -357,5 +370,5 @@ esp_err_t net_eth_init(void)
 
 bool net_eth_is_connected(void)
 {
-    return s_link_up;
+    return s_has_ip;
 }

@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "schedule": {
+    "relay1": {"start": "18:00", "end": "07:00"},
+    "relay2": {"start": "18:00", "end": "07:00"}
+  },
+  "nfc": {
+    "rules": [
+      {"data": "10", "name": "测试卡A", "opto12_pulses": 1, "open_relay4": false},
+      {"data": "11", "name": "测试卡B", "opto12_pulses": 2, "open_relay4": false},
+      {"data": "12", "name": "测试卡C", "opto12_pulses": 3, "open_relay4": true}
+    ]
+  },
+  "radar": {
+    "enabled": true,
+    "active_level": 1,
+    "trigger_delay_ms": 5000,
+    "cycle_window_ms": 20000,
+    "opto12_pulses": 1
+  }
+}

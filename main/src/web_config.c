@@ -1,11 +1,14 @@
 #include "web_config.h"
 
+#include <ctype.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#include "app_config.h"
 #include "board_hal.h"
 #include "esp_check.h"
 #include "esp_err.h"
@@ -17,7 +20,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lwip/inet.h"
-#include "nvs.h"
+#include "storage_sd.h"
 #include "time_sync.h"
 
 static const char *TAG = "web_config";
@@ -28,25 +31,10 @@ static const char *TAG = "web_config";
 #define WEB_CONFIG_TASK_STACK         4096
 #define WEB_CONFIG_TASK_PRIORITY      2
 #define WEB_CONFIG_SCHEDULE_POLL_MS   5000
-#define WEB_CONFIG_NVS_NAMESPACE      "relay_cfg"
-#define WEB_CONFIG_DEFAULT_START_MIN  (18 * 60)
-#define WEB_CONFIG_DEFAULT_END_MIN    (7 * 60)
 #define WEB_CONFIG_HTTP_STACK_SIZE    8192
-#define WEB_CONFIG_HTML_BUFFER_SIZE   4096
+#define WEB_CONFIG_HTML_BUFFER_SIZE   18000
+#define WEB_CONFIG_BODY_MAX_SIZE      8192
 
-typedef struct {
-    int relay1_start_min;
-    int relay1_end_min;
-    int relay2_start_min;
-    int relay2_end_min;
-} relay_schedule_config_t;
-
-static relay_schedule_config_t s_config = {
-    .relay1_start_min = WEB_CONFIG_DEFAULT_START_MIN,
-    .relay1_end_min = WEB_CONFIG_DEFAULT_END_MIN,
-    .relay2_start_min = WEB_CONFIG_DEFAULT_START_MIN,
-    .relay2_end_min = WEB_CONFIG_DEFAULT_END_MIN,
-};
 static httpd_handle_t s_httpd = NULL;
 static TaskHandle_t s_schedule_task = NULL;
 static esp_netif_t *s_ap_netif = NULL;
@@ -56,7 +44,6 @@ static bool s_relay_state_valid = false;
 static bool s_last_relay1_closed = false;
 static bool s_last_relay2_closed = false;
 
-static esp_err_t save_config(void);
 static void apply_relay_schedule_once(void);
 
 static bool minute_in_window(int now_min, int start_min, int end_min)
@@ -186,86 +173,95 @@ static bool form_get_value(char *body, const char *key, char *out, size_t out_le
     return false;
 }
 
-static esp_err_t load_config(void)
+static bool parse_int_range(const char *text, int min_value, int max_value, int *out)
 {
-    nvs_handle_t nvs = 0;
-    esp_err_t err = nvs_open(WEB_CONFIG_NVS_NAMESPACE, NVS_READONLY, &nvs);
-    if (err == ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGI(TAG, "relay schedule config not found; saving defaults 18:00-07:00 to NVS");
-        return save_config();
+    if (text == NULL || out == NULL || *text == '\0') {
+        return false;
     }
-    ESP_RETURN_ON_ERROR(err, TAG, "nvs_open read failed");
-
-    int32_t value = 0;
-    if (nvs_get_i32(nvs, "r1_start", &value) == ESP_OK) {
-        s_config.relay1_start_min = value;
+    char *end = NULL;
+    long value = strtol(text, &end, 10);
+    if (end == text || *end != '\0' || value < min_value || value > max_value) {
+        return false;
     }
-    if (nvs_get_i32(nvs, "r1_end", &value) == ESP_OK) {
-        s_config.relay1_end_min = value;
-    }
-    if (nvs_get_i32(nvs, "r2_start", &value) == ESP_OK) {
-        s_config.relay2_start_min = value;
-    }
-    if (nvs_get_i32(nvs, "r2_end", &value) == ESP_OK) {
-        s_config.relay2_end_min = value;
-    }
-    nvs_close(nvs);
-
-    ESP_LOGI(TAG, "relay schedule config loaded");
-    return ESP_OK;
+    *out = (int)value;
+    return true;
 }
 
-static esp_err_t save_config(void)
+static bool parse_hex_pair(const char *text, char out[3])
 {
-    nvs_handle_t nvs = 0;
-    ESP_RETURN_ON_ERROR(nvs_open(WEB_CONFIG_NVS_NAMESPACE, NVS_READWRITE, &nvs), TAG, "nvs_open write failed");
+    if (text == NULL || out == NULL || strlen(text) != 2) {
+        return false;
+    }
+    if (hex_value(text[0]) < 0 || hex_value(text[1]) < 0) {
+        return false;
+    }
+    out[0] = (char)toupper((unsigned char)text[0]);
+    out[1] = (char)toupper((unsigned char)text[1]);
+    out[2] = '\0';
+    return true;
+}
 
-    esp_err_t err = nvs_set_i32(nvs, "r1_start", s_config.relay1_start_min);
-    if (err != ESP_OK) {
-        nvs_close(nvs);
-        ESP_LOGE(TAG, "NVS write r1_start failed: %s", esp_err_to_name(err));
-        return err;
-    }
-    err = nvs_set_i32(nvs, "r1_end", s_config.relay1_end_min);
-    if (err != ESP_OK) {
-        nvs_close(nvs);
-        ESP_LOGE(TAG, "NVS write r1_end failed: %s", esp_err_to_name(err));
-        return err;
-    }
-    err = nvs_set_i32(nvs, "r2_start", s_config.relay2_start_min);
-    if (err != ESP_OK) {
-        nvs_close(nvs);
-        ESP_LOGE(TAG, "NVS write r2_start failed: %s", esp_err_to_name(err));
-        return err;
-    }
-    err = nvs_set_i32(nvs, "r2_end", s_config.relay2_end_min);
-    if (err != ESP_OK) {
-        nvs_close(nvs);
-        ESP_LOGE(TAG, "NVS write r2_end failed: %s", esp_err_to_name(err));
-        return err;
+static int append_html(char *html, size_t html_len, size_t *pos, const char *fmt, ...)
+{
+    if (*pos >= html_len) {
+        return -1;
     }
 
-    err = nvs_commit(nvs);
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "relay schedule committed to NVS");
-    } else {
-        ESP_LOGE(TAG, "NVS commit failed: %s", esp_err_to_name(err));
+    va_list args;
+    va_start(args, fmt);
+    int written = vsnprintf(html + *pos, html_len - *pos, fmt, args);
+    va_end(args);
+    if (written < 0 || written >= (int)(html_len - *pos)) {
+        return -1;
     }
-    nvs_close(nvs);
-    return err;
+    *pos += (size_t)written;
+    return 0;
+}
+
+static int append_nfc_rows(char *html, size_t html_len, size_t *pos, const app_config_t *cfg)
+{
+    for (size_t i = 0; i < APP_CONFIG_MAX_NFC_RULES; ++i) {
+        const app_nfc_rule_t empty = {0};
+        const app_nfc_rule_t *rule = i < cfg->nfc_rule_count ? &cfg->nfc_rules[i] : &empty;
+        char data_key[16];
+        char name_key[16];
+        char pulse_key[16];
+        char relay_key[16];
+        snprintf(data_key, sizeof(data_key), "nfc%u_data", (unsigned)i);
+        snprintf(name_key, sizeof(name_key), "nfc%u_name", (unsigned)i);
+        snprintf(pulse_key, sizeof(pulse_key), "nfc%u_pulses", (unsigned)i);
+        snprintf(relay_key, sizeof(relay_key), "nfc%u_relay4", (unsigned)i);
+        if (append_html(html, html_len, pos,
+                    "<div class='nfc-row'>"
+                    "<input name='%s' value='%s' maxlength='2' placeholder='00'>"
+                    "<input name='%s' value='%s' maxlength='31' placeholder='例如：1类卡'>"
+                    "<input name='%s' type='number' min='1' max='20' value='%d'>"
+                    "<label class='check'><input name='%s' type='checkbox' value='1' %s> 断开继电器4</label>"
+                    "</div>",
+                    data_key, rule->data,
+                    name_key, rule->name,
+                    pulse_key, rule->opto12_pulses > 0 ? rule->opto12_pulses : 1,
+                    relay_key, rule->open_relay4 ? "checked" : "") != 0) {
+            return -1;
+        }
+    }
+    return 0;
 }
 
 static esp_err_t send_config_page(httpd_req_t *req, const char *message)
 {
+    app_config_t cfg;
+    app_config_copy(&cfg);
+
     char r1_start[6] = {0};
     char r1_end[6] = {0};
     char r2_start[6] = {0};
     char r2_end[6] = {0};
     char board_time[6] = {0};
-    format_time_minutes(s_config.relay1_start_min, r1_start, sizeof(r1_start));
-    format_time_minutes(s_config.relay1_end_min, r1_end, sizeof(r1_end));
-    format_time_minutes(s_config.relay2_start_min, r2_start, sizeof(r2_start));
-    format_time_minutes(s_config.relay2_end_min, r2_end, sizeof(r2_end));
+    format_time_minutes(cfg.schedule.relay1_start_min, r1_start, sizeof(r1_start));
+    format_time_minutes(cfg.schedule.relay1_end_min, r1_end, sizeof(r1_end));
+    format_time_minutes(cfg.schedule.relay2_start_min, r2_start, sizeof(r2_start));
+    format_time_minutes(cfg.schedule.relay2_end_min, r2_end, sizeof(r2_end));
     format_board_time(board_time, sizeof(board_time));
 
     char *html = malloc(WEB_CONFIG_HTML_BUFFER_SIZE);
@@ -274,46 +270,68 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
         return ESP_ERR_NO_MEM;
     }
 
-    int len = snprintf(html, WEB_CONFIG_HTML_BUFFER_SIZE,
-                       "<!doctype html><html lang=\"zh-CN\"><head>"
-                       "<meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-                       "<title>Traffic Light Config</title>"
-                       "<style>"
-                       "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;background:#f6f7f9;color:#1f2933}"
-                       "main{max-width:560px;margin:0 auto;padding:24px 16px}"
-                       "h1{font-size:22px;margin:0 0 16px}"
-                       "form{background:#fff;border:1px solid #d9dee7;border-radius:8px;padding:18px}"
-                       ".row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}"
-                       ".time{background:#fff;border:1px solid #d9dee7;border-radius:8px;padding:14px 18px;margin-bottom:14px;font-size:18px}"
-                       ".time span{font-weight:700}"
-                       "label{display:block;font-size:14px;color:#52606d;margin-bottom:6px}"
-                       "input{width:100%%;box-sizing:border-box;font-size:18px;padding:10px;border:1px solid #cbd2d9;border-radius:6px}"
-                       "button{width:100%%;margin-top:16px;padding:12px;font-size:18px;border:0;border-radius:6px;background:#0b6bcb;color:#fff}"
-                       ".msg{padding:10px 12px;border-radius:6px;background:#e3f8e8;color:#176b37;margin:0 0 14px}"
-                       ".hint{font-size:13px;color:#66788a;line-height:1.5;margin-top:16px}"
-                       "</style></head><body><main>"
-                       "<h1>继电器定时配置</h1>"
-                       "<div class=\"time\">板子当前时间：<span id=\"board-time\">%s</span></div>"
-                       "%s"
-                       "<form method=\"post\" action=\"/save\">"
-                       "<h2>继电器1</h2>"
-                       "<div class=\"row\"><div><label>闭合开始</label><input type=\"time\" name=\"r1_start\" value=\"%s\" required></div>"
-                       "<div><label>闭合结束</label><input type=\"time\" name=\"r1_end\" value=\"%s\" required></div></div>"
-                       "<h2>继电器2</h2>"
-                       "<div class=\"row\"><div><label>闭合开始</label><input type=\"time\" name=\"r2_start\" value=\"%s\" required></div>"
-                       "<div><label>闭合结束</label><input type=\"time\" name=\"r2_end\" value=\"%s\" required></div></div>"
-                       "<button type=\"submit\">保存</button>"
-                       "<p class=\"hint\">默认规则为晚上18:00闭合，次日07:00断开。时间同步完成后，设备会按这里的时间控制继电器1和继电器2。</p>"
-                       "</form>"
-                       "<script>"
-                       "function updateTime(){fetch('/status',{cache:'no-store'}).then(function(r){return r.json()}).then(function(s){document.getElementById('board-time').textContent=s.time||'--:--'}).catch(function(){document.getElementById('board-time').textContent='--:--'})}"
-                       "setInterval(updateTime,5000);updateTime();"
-                       "</script></main></body></html>",
-                       board_time,
-                       message ? message : "",
-                       r1_start, r1_end, r2_start, r2_end);
-    if (len < 0 || len >= WEB_CONFIG_HTML_BUFFER_SIZE) {
+    size_t pos = 0;
+    int ok = 0;
+    ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
+                      "<!doctype html><html lang='zh-CN'><head>"
+                      "<meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+                      "<title>NFC路灯控制器配置</title>"
+                      "<style>"
+                      "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;background:#f4f6f8;color:#1f2933}"
+                      ".layout{min-height:100vh}.side{position:fixed;left:0;top:0;bottom:0;width:180px;box-sizing:border-box;background:#14213d;color:#fff;padding:22px 16px;overflow-y:auto}.side h1{font-size:18px;margin:0 0 22px}.side a{display:block;color:#dbeafe;text-decoration:none;padding:10px 8px;border-radius:6px}.side a:hover{background:#263b65}.main{max-width:920px;margin-left:180px;padding:26px}.card{background:#fff;border:1px solid #d9dee7;border-radius:10px;padding:18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(16,24,40,.04)}"
+                      "h2{margin:0 0 14px;font-size:22px}h3{margin:14px 0 10px}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}.nfc-head,.nfc-row{display:grid;grid-template-columns:90px 1.2fr 110px 160px;gap:10px;align-items:center;margin:8px 0}.nfc-head{font-size:13px;color:#66788a}.timebox{font-size:18px}.timebox span{font-weight:700}.msg{background:#e3f8e8;color:#176b37;padding:10px 12px;border-radius:6px;margin-bottom:14px}.warn{background:#fff7e6;color:#8a4b00;padding:10px 12px;border-radius:6px}.hint{font-size:13px;color:#66788a;line-height:1.6}.check{font-size:14px;color:#334e68}label{display:block;font-size:14px;color:#52606d;margin-bottom:6px}input{width:100%%;box-sizing:border-box;font-size:16px;padding:9px;border:1px solid #cbd2d9;border-radius:6px}input[type=checkbox]{width:auto}.btn{max-width:240px;margin-top:10px;padding:12px;font-size:17px;border:0;border-radius:6px;background:#0b6bcb;color:#fff}"
+                      "@media(max-width:760px){.side{position:sticky;top:0;bottom:auto;width:auto;max-height:45vh;z-index:1}.side a{display:inline-block}.main{margin-left:0;padding:16px}.row,.nfc-head,.nfc-row{grid-template-columns:1fr}}"
+                      "</style></head><body><div class='layout'><nav class='side'><h1>NFC路灯控制器</h1><a href='#time'>时间配置</a><a href='#nfc'>NFC映射</a><a href='#radar'>雷达输入</a><a href='#status'>系统状态</a></nav><main class='main'>");
+
+    if (message != NULL && message[0] != '\0') {
+        ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos, "<div class='msg'>%s</div>", message);
+    }
+
+    ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
+                      "<form method='post' action='/save'>"
+                      "<section id='time' class='card'><h2>时间配置</h2>"
+                      "<div class='timebox'>控制器当前时间：<span id='board-time'>%s</span></div>"
+                      "<p class='hint'>继电器1和继电器2按这里的时间闭合；支持跨天时间段，例如 18:00 到 07:00。</p>"
+                      "<h3>继电器1</h3><div class='row'><div><label>闭合开始</label><input type='time' name='r1_start' value='%s' required></div><div><label>闭合结束</label><input type='time' name='r1_end' value='%s' required></div></div>"
+                      "<h3>继电器2</h3><div class='row'><div><label>闭合开始</label><input type='time' name='r2_start' value='%s' required></div><div><label>闭合结束</label><input type='time' name='r2_end' value='%s' required></div></div>"
+                      "</section>",
+                      board_time, r1_start, r1_end, r2_start, r2_end);
+
+    ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
+                      "<section id='nfc' class='card'><h2>NFC映射</h2>"
+                      "<p class='hint'>只匹配卡内 data[0..1]，不匹配 UID。data 写两位十六进制，例如 00、01、04。默认 00..05 分别输出 1..6 个 OPTO1+OPTO2 脉冲，其中 02..05 会断开继电器4。</p>"
+                      "<div class='nfc-head'><span>data</span><span>名称</span><span>脉冲数</span><span>附加动作</span></div>");
+    ok |= append_nfc_rows(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos, &cfg);
+    ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos, "</section>");
+
+    ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
+                      "<section id='radar' class='card'><h2>雷达输入</h2>"
+                      "<p class='hint'>IO_IN1(GPIO16) 和 IO_IN2(GPIO38) 接外部雷达 INT，高电平有效。任意一路触发后，两路共同进入同一个周期窗口；窗口内再次触发不会重复输出。</p>"
+                      "<label class='check'><input type='checkbox' name='radar_enabled' value='1' %s> 启用雷达触发</label>"
+                      "<div class='row'><div><label>有效电平</label><input type='number' name='radar_active' min='0' max='1' value='%d'></div><div><label>触发延时(ms)</label><input type='number' name='radar_delay' min='0' max='60000' value='%d'></div></div>"
+                      "<div class='row'><div><label>周期窗口(ms)</label><input type='number' name='radar_window' min='1000' max='600000' value='%d'></div><div><label>OPTO1+OPTO2脉冲数</label><input type='number' name='radar_pulses' min='1' max='20' value='%d'></div></div>"
+                      "</section>",
+                      cfg.radar.enabled ? "checked" : "",
+                      cfg.radar.active_level,
+                      cfg.radar.trigger_delay_ms,
+                      cfg.radar.cycle_window_ms,
+                      cfg.radar.opto12_pulses);
+
+    ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
+                      "<section id='status' class='card'><h2>系统状态</h2>"
+                      "<p>配置来源：<b>%s</b></p><p>SD卡：<b>%s</b></p><p>SoftAP：<b>%s</b>，密码：<b>%s</b></p>"
+                      "<p class='warn'>配置保存时会同时写 SD 卡文件 <b>/CONFIG.JSN</b> 和 ESP32 NVS。没有 SD 卡时会至少保存到 NVS；下次插入 SD 卡后，SD 文件优先级最高。</p>"
+                      "</section><button class='btn' type='submit'>保存全部配置</button></form>"
+                      "<script>function updateTime(){fetch('/status',{cache:'no-store'}).then(function(r){return r.json()}).then(function(s){document.getElementById('board-time').textContent=s.time||'--:--'}).catch(function(){document.getElementById('board-time').textContent='--:--'})}setInterval(updateTime,5000);updateTime();</script>"
+                      "</main></div></body></html>",
+                      app_config_source_name(cfg.source),
+                      storage_sd_is_mounted() ? "已挂载" : "未挂载",
+                      s_ap_ssid,
+                      WEB_CONFIG_AP_PASSWORD);
+
+    if (ok != 0) {
         free(html);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "html too large");
         return ESP_FAIL;
     }
 
@@ -330,21 +348,17 @@ static esp_err_t root_get_handler(httpd_req_t *req)
 
 static esp_err_t status_get_handler(httpd_req_t *req)
 {
-    char board_time[6] = {0};
-    format_board_time(board_time, sizeof(board_time));
+    char time_text[6] = {0};
+    format_board_time(time_text, sizeof(time_text));
+    const app_config_t *cfg = app_config_get();
 
     char body[256];
     int len = snprintf(body, sizeof(body),
-                       "{"
-                       "\"ok\":true,"
-                       "\"ssid\":\"%s\","
-                       "\"ip\":\"192.168.4.1\","
-                       "\"time\":\"%s\","
-                       "\"time_synced\":%s"
-                       "}",
-                       s_ap_ssid,
-                       board_time,
-                       time_sync_is_synced() ? "true" : "false");
+                       "{\"time\":\"%s\",\"synced\":%s,\"sd_mounted\":%s,\"config_source\":\"%s\"}",
+                       time_text,
+                       time_sync_is_synced() ? "true" : "false",
+                       storage_sd_is_mounted() ? "true" : "false",
+                       app_config_source_name(cfg->source));
     if (len < 0 || len >= (int)sizeof(body)) {
         return ESP_FAIL;
     }
@@ -354,21 +368,89 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     return httpd_resp_send(req, body, HTTPD_RESP_USE_STRLEN);
 }
 
-static esp_err_t save_post_handler(httpd_req_t *req)
+static bool parse_post_config(char *body, app_config_t *cfg)
 {
-    if (req->content_len <= 0 || req->content_len > 512) {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid body");
-        return ESP_FAIL;
+    char value[64];
+    int r1_start = 0;
+    int r1_end = 0;
+    int r2_start = 0;
+    int r2_end = 0;
+
+    if (!form_get_value(body, "r1_start", value, sizeof(value)) || !parse_time_minutes(value, &r1_start) ||
+        !form_get_value(body, "r1_end", value, sizeof(value)) || !parse_time_minutes(value, &r1_end) ||
+        !form_get_value(body, "r2_start", value, sizeof(value)) || !parse_time_minutes(value, &r2_start) ||
+        !form_get_value(body, "r2_end", value, sizeof(value)) || !parse_time_minutes(value, &r2_end)) {
+        return false;
     }
 
-    char body[513] = {0};
+    cfg->schedule.relay1_start_min = r1_start;
+    cfg->schedule.relay1_end_min = r1_end;
+    cfg->schedule.relay2_start_min = r2_start;
+    cfg->schedule.relay2_end_min = r2_end;
+
+    cfg->radar.enabled = form_get_value(body, "radar_enabled", value, sizeof(value));
+    if (!form_get_value(body, "radar_active", value, sizeof(value)) || !parse_int_range(value, 0, 1, &cfg->radar.active_level) ||
+        !form_get_value(body, "radar_delay", value, sizeof(value)) || !parse_int_range(value, 0, 60000, &cfg->radar.trigger_delay_ms) ||
+        !form_get_value(body, "radar_window", value, sizeof(value)) || !parse_int_range(value, 1000, 600000, &cfg->radar.cycle_window_ms) ||
+        !form_get_value(body, "radar_pulses", value, sizeof(value)) || !parse_int_range(value, 1, 20, &cfg->radar.opto12_pulses)) {
+        return false;
+    }
+
+    size_t count = 0;
+    for (size_t i = 0; i < APP_CONFIG_MAX_NFC_RULES; ++i) {
+        char key[24];
+        char data_text[16];
+        snprintf(key, sizeof(key), "nfc%u_data", (unsigned)i);
+        if (!form_get_value(body, key, data_text, sizeof(data_text)) || data_text[0] == '\0') {
+            continue;
+        }
+
+        app_nfc_rule_t rule = {0};
+        if (!parse_hex_pair(data_text, rule.data)) {
+            return false;
+        }
+
+        snprintf(key, sizeof(key), "nfc%u_name", (unsigned)i);
+        if (form_get_value(body, key, value, sizeof(value))) {
+            strlcpy(rule.name, value, sizeof(rule.name));
+        }
+        if (rule.name[0] == '\0') {
+            snprintf(rule.name, sizeof(rule.name), "NFC %s", rule.data);
+        }
+
+        snprintf(key, sizeof(key), "nfc%u_pulses", (unsigned)i);
+        if (!form_get_value(body, key, value, sizeof(value)) || !parse_int_range(value, 1, 20, &rule.opto12_pulses)) {
+            return false;
+        }
+
+        snprintf(key, sizeof(key), "nfc%u_relay4", (unsigned)i);
+        rule.open_relay4 = form_get_value(body, key, value, sizeof(value));
+
+        cfg->nfc_rules[count++] = rule;
+    }
+
+    cfg->nfc_rule_count = count;
+    return count > 0;
+}
+
+static esp_err_t save_post_handler(httpd_req_t *req)
+{
+    if (req->content_len <= 0 || req->content_len > WEB_CONFIG_BODY_MAX_SIZE) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid body");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    char *body = calloc(1, req->content_len + 1);
+    if (body == NULL) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no memory");
+        return ESP_ERR_NO_MEM;
+    }
+
     int received = 0;
     while (received < req->content_len) {
         int ret = httpd_req_recv(req, body + received, req->content_len - received);
         if (ret <= 0) {
-            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
-                continue;
-            }
+            free(body);
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "receive failed");
             return ESP_FAIL;
         }
@@ -376,50 +458,36 @@ static esp_err_t save_post_handler(httpd_req_t *req)
     }
     body[received] = '\0';
 
-    char r1_start_text[8] = {0};
-    char r1_end_text[8] = {0};
-    char r2_start_text[8] = {0};
-    char r2_end_text[8] = {0};
-    int r1_start = 0;
-    int r1_end = 0;
-    int r2_start = 0;
-    int r2_end = 0;
-
-    if (!form_get_value(body, "r1_start", r1_start_text, sizeof(r1_start_text)) ||
-        !form_get_value(body, "r1_end", r1_end_text, sizeof(r1_end_text)) ||
-        !form_get_value(body, "r2_start", r2_start_text, sizeof(r2_start_text)) ||
-        !form_get_value(body, "r2_end", r2_end_text, sizeof(r2_end_text)) ||
-        !parse_time_minutes(r1_start_text, &r1_start) ||
-        !parse_time_minutes(r1_end_text, &r1_end) ||
-        !parse_time_minutes(r2_start_text, &r2_start) ||
-        !parse_time_minutes(r2_end_text, &r2_end)) {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad time");
-        return ESP_FAIL;
+    app_config_t cfg;
+    app_config_copy(&cfg);
+    if (!parse_post_config(body, &cfg)) {
+        free(body);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad config");
+        return ESP_ERR_INVALID_ARG;
     }
+    free(body);
 
-    s_config.relay1_start_min = r1_start;
-    s_config.relay1_end_min = r1_end;
-    s_config.relay2_start_min = r2_start;
-    s_config.relay2_end_min = r2_end;
-
-    esp_err_t err = save_config();
+    esp_err_t err = app_config_save(&cfg);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "save relay schedule failed: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "save app config failed: %s", esp_err_to_name(err));
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "save failed");
-        return ESP_FAIL;
+        return err;
     }
 
-    ESP_LOGI(TAG, "relay schedule saved: R1 %s-%s, R2 %s-%s",
-             r1_start_text, r1_end_text, r2_start_text, r2_end_text);
+    ESP_LOGI(TAG, "config saved: NFC rules=%u radar=%s delay=%dms window=%dms",
+             (unsigned)cfg.nfc_rule_count,
+             cfg.radar.enabled ? "enabled" : "disabled",
+             cfg.radar.trigger_delay_ms,
+             cfg.radar.cycle_window_ms);
     apply_relay_schedule_once();
-    return send_config_page(req, "<p class=\"msg\">已保存</p>");
+    return send_config_page(req, "配置已保存：已写入 SD 卡（如已挂载）和 ESP32 NVS。");
 }
 
 static esp_err_t start_http_server(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.server_port = 80;
     config.stack_size = WEB_CONFIG_HTTP_STACK_SIZE;
+    config.lru_purge_enable = true;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
     ESP_RETURN_ON_ERROR(httpd_start(&s_httpd, &config), TAG, "httpd_start failed");
@@ -529,6 +597,7 @@ static void apply_relay_schedule_once(void)
         return;
     }
 
+    const app_config_t *cfg = app_config_get();
     time_t now = 0;
     time(&now);
 
@@ -536,8 +605,8 @@ static void apply_relay_schedule_once(void)
     localtime_r(&now, &tm_info);
     int now_min = tm_info.tm_hour * 60 + tm_info.tm_min;
 
-    bool relay1_closed = minute_in_window(now_min, s_config.relay1_start_min, s_config.relay1_end_min);
-    bool relay2_closed = minute_in_window(now_min, s_config.relay2_start_min, s_config.relay2_end_min);
+    bool relay1_closed = minute_in_window(now_min, cfg->schedule.relay1_start_min, cfg->schedule.relay1_end_min);
+    bool relay2_closed = minute_in_window(now_min, cfg->schedule.relay2_start_min, cfg->schedule.relay2_end_min);
     bool changed = !s_relay_state_valid ||
                    relay1_closed != s_last_relay1_closed ||
                    relay2_closed != s_last_relay2_closed;
@@ -583,7 +652,7 @@ esp_err_t web_config_start(void)
         return ESP_OK;
     }
 
-    ESP_RETURN_ON_ERROR(load_config(), TAG, "load_config failed");
+    ESP_RETURN_ON_ERROR(app_config_init(), TAG, "app_config_init failed");
     ESP_RETURN_ON_ERROR(start_softap(), TAG, "start_softap failed");
     ESP_RETURN_ON_ERROR(start_http_server(), TAG, "start_http_server failed");
 

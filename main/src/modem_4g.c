@@ -9,6 +9,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_netif_ppp.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "iot_usbh_cdc.h"
@@ -22,6 +23,26 @@ static bool s_dte_up = false;
 static bool s_cdc_installed = false;
 static bool s_modem_installed = false;
 static TaskHandle_t s_task_handle = NULL;
+
+typedef enum {
+    MODEM_BOOT_STAGE_NOT_STARTED = 0,
+    MODEM_BOOT_STAGE_USB_HOST_READY,
+    MODEM_BOOT_STAGE_USB_MODEM_INSTALLED,
+    MODEM_BOOT_STAGE_USB_DEVICE_SEEN,
+    MODEM_BOOT_STAGE_USB_ID_MATCHED,
+    MODEM_BOOT_STAGE_USB_PORT_OPEN,
+    MODEM_BOOT_STAGE_DTE_CONNECTED,
+    MODEM_BOOT_STAGE_AT_PARSER_READY,
+    MODEM_BOOT_STAGE_AT_OK,
+    MODEM_BOOT_STAGE_SIM_READY,
+    MODEM_BOOT_STAGE_SIGNAL_OK,
+    MODEM_BOOT_STAGE_NETWORK_REGISTERED,
+    MODEM_BOOT_STAGE_PPP_DIALING,
+    MODEM_BOOT_STAGE_PPP_GOT_IP,
+} modem_boot_stage_t;
+
+static modem_boot_stage_t s_boot_stage = MODEM_BOOT_STAGE_NOT_STARTED;
+static int32_t s_last_ppp_event = -1;
 
 #define MODEM_TASK_STACK        8192
 #define MODEM_TASK_PRIORITY     5
@@ -42,12 +63,329 @@ static const usb_modem_id_t s_usb_modem_id_list[] = {
     {.match_id = {0}},
 };
 
+static const char *boot_stage_to_text(modem_boot_stage_t stage)
+{
+    switch (stage) {
+    case MODEM_BOOT_STAGE_NOT_STARTED:
+        return "not started";
+    case MODEM_BOOT_STAGE_USB_HOST_READY:
+        return "USB host driver installed; waiting for USB enumeration";
+    case MODEM_BOOT_STAGE_USB_MODEM_INSTALLED:
+        return "USB modem driver installed; waiting for USB device";
+    case MODEM_BOOT_STAGE_USB_DEVICE_SEEN:
+        return "USB device seen; checking VID/PID/interface match";
+    case MODEM_BOOT_STAGE_USB_ID_MATCHED:
+        return "USB VID/PID/interface matched; opening CDC ports";
+    case MODEM_BOOT_STAGE_USB_PORT_OPEN:
+        return "USB CDC port open; waiting for DTE connect";
+    case MODEM_BOOT_STAGE_DTE_CONNECTED:
+        return "DTE connected; waiting for AT parser start";
+    case MODEM_BOOT_STAGE_AT_PARSER_READY:
+        return "AT parser running; waiting for AT response";
+    case MODEM_BOOT_STAGE_AT_OK:
+        return "AT communication OK; checking SIM";
+    case MODEM_BOOT_STAGE_SIM_READY:
+        return "SIM ready; checking signal";
+    case MODEM_BOOT_STAGE_SIGNAL_OK:
+        return "signal OK; checking network registration";
+    case MODEM_BOOT_STAGE_NETWORK_REGISTERED:
+        return "network registered; waiting for PPP dial";
+    case MODEM_BOOT_STAGE_PPP_DIALING:
+        return "PPP dialing/negotiating; waiting for IP";
+    case MODEM_BOOT_STAGE_PPP_GOT_IP:
+        return "PPP got IP";
+    default:
+        return "unknown";
+    }
+}
+
+static const char *pin_state_to_text(esp_modem_pin_state_t state)
+{
+    switch (state) {
+    case PIN_READY:
+        return "READY";
+    case PIN_SIM_PIN:
+        return "SIM PIN required";
+    case PIN_SIM_PIN2:
+        return "SIM PIN2 required";
+    case PIN_SIM_PUK:
+        return "SIM PUK required";
+    case PIN_SIM_PUK2:
+        return "SIM PUK2 required";
+    case PIN_UNKNOWN:
+    default:
+        return "unknown / no SIM / not ready";
+    }
+}
+
+static const char *cereg_stat_to_text(int stat)
+{
+    switch (stat) {
+    case 0:
+        return "not registered, not searching";
+    case 1:
+        return "registered, home network";
+    case 2:
+        return "searching / trying to register";
+    case 3:
+        return "registration denied";
+    case 4:
+        return "unknown";
+    case 5:
+        return "registered, roaming";
+    default:
+        return "unrecognized";
+    }
+}
+
+static const char *ppp_event_to_text(int32_t event_id)
+{
+    switch (event_id) {
+    case -1:
+        return "no PPP status event yet";
+    case NETIF_PPP_ERRORNONE:
+        return "PPP no error";
+    case NETIF_PPP_ERRORPARAM:
+        return "PPP invalid parameter";
+    case NETIF_PPP_ERROROPEN:
+        return "PPP unable to open session";
+    case NETIF_PPP_ERRORDEVICE:
+        return "PPP invalid I/O device";
+    case NETIF_PPP_ERRORALLOC:
+        return "PPP allocation failed";
+    case NETIF_PPP_ERRORUSER:
+        return "PPP stopped by user";
+    case NETIF_PPP_ERRORCONNECT:
+        return "PPP connection lost";
+    case NETIF_PPP_ERRORAUTHFAIL:
+        return "PPP authentication failed";
+    case NETIF_PPP_ERRORPROTOCOL:
+        return "PPP protocol failed";
+    case NETIF_PPP_ERRORPEERDEAD:
+        return "PPP peer timeout";
+    case NETIF_PPP_ERRORIDLETIMEOUT:
+        return "PPP idle timeout";
+    case NETIF_PPP_ERRORCONNECTTIME:
+        return "PPP max connect time reached";
+    case NETIF_PPP_ERRORLOOPBACK:
+        return "PPP loopback detected";
+    case NETIF_PPP_PHASE_DEAD:
+        return "PPP phase dead";
+    case NETIF_PPP_PHASE_HOLDOFF:
+        return "PPP phase holdoff";
+    case NETIF_PPP_PHASE_INITIALIZE:
+        return "PPP phase initialize";
+    case NETIF_PPP_PHASE_SERIALCONN:
+        return "PPP phase serial connected";
+    case NETIF_PPP_PHASE_ESTABLISH:
+        return "PPP phase establish";
+    case NETIF_PPP_PHASE_AUTHENTICATE:
+        return "PPP phase authenticate";
+    case NETIF_PPP_PHASE_NETWORK:
+        return "PPP phase network";
+    case NETIF_PPP_PHASE_RUNNING:
+        return "PPP phase running";
+    case NETIF_PPP_PHASE_TERMINATE:
+        return "PPP phase terminate";
+    case NETIF_PPP_PHASE_DISCONNECT:
+        return "PPP phase disconnect";
+    case NETIF_PPP_CONNECT_FAILED:
+        return "PPP connect failed";
+    default:
+        return "PPP status event";
+    }
+}
+
+static void set_boot_stage(modem_boot_stage_t stage)
+{
+    if (stage > s_boot_stage) {
+        s_boot_stage = stage;
+        ESP_LOGI(TAG, "  [diag] stage -> %s", boot_stage_to_text(stage));
+    }
+}
+
+static void log_usb_modem_diag(const usb_modem_diag_t *diag)
+{
+    if (diag == NULL) {
+        return;
+    }
+
+    if (!diag->device_seen) {
+        ESP_LOGI(TAG, "  [diag] USB device: not enumerated yet");
+        return;
+    }
+
+    ESP_LOGI(TAG,
+             "  [diag] USB device: addr=%u VID=0x%04X PID=0x%04X bcd=0x%04X class=0x%02X/0x%02X/0x%02X cfg=%u interfaces=%u cdc_match_intf=%d",
+             diag->dev_addr, diag->vid, diag->pid, diag->bcd_device,
+             diag->device_class, diag->device_subclass, diag->device_protocol,
+             diag->config_value, diag->config_interfaces, diag->cdc_matched_intf_num);
+    ESP_LOGI(TAG,
+             "  [diag] USB match: id_matched=%d name=%s modem_itf=%d present=%d open=%d at_itf=%d present=%d open=%d dte_connected=%d",
+             diag->id_matched, diag->matched_name ? diag->matched_name : "(none)",
+             diag->modem_itf_num, diag->modem_itf_present, diag->modem_port_open,
+             diag->at_itf_num, diag->at_itf_present, diag->at_port_open, diag->dte_connected);
+}
+
+static bool poll_modem_diagnostics(bool verbose)
+{
+    esp_netif_t *ppp = usbh_modem_get_netif();
+    at_handle_t at = usbh_modem_get_atparser();
+    usb_modem_diag_t diag = {0};
+    bool has_diag = usbh_modem_get_diag(&diag);
+
+    if (ppp != NULL) {
+        set_boot_stage(MODEM_BOOT_STAGE_USB_MODEM_INSTALLED);
+    }
+
+    if (has_diag) {
+        if (diag.device_seen) {
+            set_boot_stage(MODEM_BOOT_STAGE_USB_DEVICE_SEEN);
+        }
+        if (diag.id_matched) {
+            set_boot_stage(MODEM_BOOT_STAGE_USB_ID_MATCHED);
+        }
+        if (diag.modem_port_open || diag.at_port_open) {
+            set_boot_stage(MODEM_BOOT_STAGE_USB_PORT_OPEN);
+        }
+        if (diag.dte_connected) {
+            set_boot_stage(MODEM_BOOT_STAGE_DTE_CONNECTED);
+        }
+        if (verbose) {
+            log_usb_modem_diag(&diag);
+        }
+    } else if (verbose) {
+        ESP_LOGI(TAG, "  [diag] USB modem diagnostic snapshot unavailable; netif=%p atparser=%p", (void *)ppp, (void *)at);
+    }
+
+    if (at == NULL) {
+        if (verbose) {
+            ESP_LOGI(TAG, "  [diag] AT parser handle is NULL: DTE not created/connected yet");
+        }
+        return false;
+    }
+
+    bool at_stopped = modem_at_is_stopped(at);
+    if (at_stopped) {
+        if (verbose) {
+            ESP_LOGW(TAG, "  [diag] AT parser exists but is STOPPED: DTE is not connected or was disconnected");
+        }
+        return false;
+    }
+    set_boot_stage(MODEM_BOOT_STAGE_AT_PARSER_READY);
+
+    esp_err_t err = at_cmd_at(at);
+    if (err != ESP_OK) {
+        if (verbose) {
+            if (err == ESP_ERR_INVALID_STATE) {
+                ESP_LOGW(TAG, "  [diag] AT check failed: parser state invalid/stopped (%s)", esp_err_to_name(err));
+            } else if (err == ESP_ERR_TIMEOUT) {
+                ESP_LOGW(TAG, "  [diag] AT check timeout: USB/DTE open but modem did not answer AT");
+            } else if (err == ESP_ERR_NOT_FINISHED) {
+                ESP_LOGW(TAG, "  [diag] AT check interrupted: parser stopped while waiting for response");
+            } else {
+                ESP_LOGW(TAG, "  [diag] AT check failed: %s", esp_err_to_name(err));
+            }
+        }
+        return false;
+    }
+    set_boot_stage(MODEM_BOOT_STAGE_AT_OK);
+
+    esp_modem_pin_state_t pin = PIN_UNKNOWN;
+    err = at_cmd_read_pin(at, &pin);
+    if (err != ESP_OK || pin != PIN_READY) {
+        if (verbose) {
+            ESP_LOGW(TAG, "  [diag] SIM not ready: err=%s state=%s(%d)", esp_err_to_name(err), pin_state_to_text(pin), pin);
+        }
+        return false;
+    }
+    set_boot_stage(MODEM_BOOT_STAGE_SIM_READY);
+
+    esp_modem_at_csq_t csq = {0};
+    err = at_cmd_get_signal_quality(at, &csq);
+    if (err != ESP_OK || csq.rssi == 99 || csq.ber > 99) {
+        if (verbose) {
+            ESP_LOGW(TAG, "  [diag] signal not ready: err=%s rssi=%d ber=%d", esp_err_to_name(err), csq.rssi, csq.ber);
+        }
+        return false;
+    }
+    set_boot_stage(MODEM_BOOT_STAGE_SIGNAL_OK);
+
+    esp_modem_at_cereg_t cereg = {0};
+    err = at_cmd_get_network_reg_status(at, &cereg);
+    if (err != ESP_OK || (cereg.stat != 1 && cereg.stat != 5)) {
+        if (verbose) {
+            ESP_LOGW(TAG, "  [diag] network not registered: err=%s n=%d stat=%d (%s)",
+                     esp_err_to_name(err), cereg.n, cereg.stat, cereg_stat_to_text(cereg.stat));
+        }
+        return false;
+    }
+    set_boot_stage(MODEM_BOOT_STAGE_NETWORK_REGISTERED);
+
+    char pdp[160] = {0};
+    err = at_cmd_get_pdp_context(at, pdp, sizeof(pdp));
+    if (verbose) {
+        if (err == ESP_OK) {
+            ESP_LOGI(TAG, "  [diag] PDP context: %s", pdp);
+        } else {
+            ESP_LOGW(TAG, "  [diag] read PDP context failed: %s", esp_err_to_name(err));
+        }
+    }
+    set_boot_stage(MODEM_BOOT_STAGE_PPP_DIALING);
+    return true;
+}
+
+static void log_final_failure_reason(bool kicked)
+{
+    ESP_LOGE(TAG, "  [diag] final stage: %s", boot_stage_to_text(s_boot_stage));
+    ESP_LOGE(TAG, "  [diag] POWERKEY kick was %s", kicked ? "issued" : "not issued");
+    ESP_LOGE(TAG, "  [diag] last PPP event: %s (%" PRId32 ")", ppp_event_to_text(s_last_ppp_event), s_last_ppp_event);
+
+    switch (s_boot_stage) {
+    case MODEM_BOOT_STAGE_USB_HOST_READY:
+    case MODEM_BOOT_STAGE_USB_MODEM_INSTALLED:
+        ESP_LOGE(TAG, "  [diag] likely cause: USB host ready but modem device never appeared; check power, cable, VID/PID, or USB wiring");
+        break;
+    case MODEM_BOOT_STAGE_USB_DEVICE_SEEN:
+        ESP_LOGE(TAG, "  [diag] likely cause: USB device appeared but did not match modem ID or expected interfaces");
+        break;
+    case MODEM_BOOT_STAGE_USB_ID_MATCHED:
+    case MODEM_BOOT_STAGE_USB_PORT_OPEN:
+        ESP_LOGE(TAG, "  [diag] likely cause: matched device but CDC ports could not fully open or enumerate");
+        break;
+    case MODEM_BOOT_STAGE_DTE_CONNECTED:
+        ESP_LOGE(TAG, "  [diag] likely cause: DTE connected but AT parser never started; check parser start/connect callback");
+        break;
+    case MODEM_BOOT_STAGE_AT_PARSER_READY:
+        ESP_LOGE(TAG, "  [diag] likely cause: AT parser is running but modem did not answer AT; check USB data path, modem state, or serial interface mapping");
+        break;
+    case MODEM_BOOT_STAGE_AT_OK:
+        ESP_LOGE(TAG, "  [diag] likely cause: SIM not inserted, SIM not ready, or SIM PIN/PUK required");
+        break;
+    case MODEM_BOOT_STAGE_SIM_READY:
+        ESP_LOGE(TAG, "  [diag] likely cause: no antenna/signal or module has not reported usable signal yet");
+        break;
+    case MODEM_BOOT_STAGE_SIGNAL_OK:
+        ESP_LOGE(TAG, "  [diag] likely cause: SIM not registered to network, no service, denied registration, or APN/operator issue");
+        break;
+    case MODEM_BOOT_STAGE_NETWORK_REGISTERED:
+    case MODEM_BOOT_STAGE_PPP_DIALING:
+        ESP_LOGE(TAG, "  [diag] likely cause: PPP dial/negotiation failed, APN/auth issue, or carrier rejected data call");
+        break;
+    default:
+        ESP_LOGE(TAG, "  [diag] likely cause: modem did not reach PPP got-IP state before timeout");
+        break;
+    }
+}
+
+
 static void on_ppp_got_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     (void)arg;
     (void)base;
     (void)id;
 
+    set_boot_stage(MODEM_BOOT_STAGE_PPP_GOT_IP);
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)data;
     if (event == NULL) {
         return;
@@ -69,6 +407,22 @@ static void on_ppp_lost_ip(void *arg, esp_event_base_t base, int32_t id, void *d
 
     ESP_LOGW(TAG, "  [event] 4G PPP lost IP");
     s_connected = false;
+}
+
+static void on_ppp_status(void *arg, esp_event_base_t base, int32_t id, void *data)
+{
+    (void)arg;
+    (void)base;
+    (void)data;
+
+    s_last_ppp_event = id;
+    ESP_LOGI(TAG, "  [event] PPP status: %s (%" PRId32 ")", ppp_event_to_text(id), id);
+
+    if (id == NETIF_PPP_PHASE_ESTABLISH || id == NETIF_PPP_PHASE_AUTHENTICATE || id == NETIF_PPP_PHASE_NETWORK) {
+        set_boot_stage(MODEM_BOOT_STAGE_PPP_DIALING);
+    } else if (id == NETIF_PPP_PHASE_RUNNING) {
+        set_boot_stage(MODEM_BOOT_STAGE_PPP_GOT_IP);
+    }
 }
 
 /*
@@ -130,6 +484,11 @@ static void modem_task(void *arg)
 {
     (void)arg;
 
+    s_connected = false;
+    s_dte_up = false;
+    s_boot_stage = MODEM_BOOT_STAGE_NOT_STARTED;
+    s_last_ppp_event = -1;
+
     ESP_LOGI(TAG, "=== AIR780ER 4G modem init task start ===");
 
     ESP_LOGI(TAG, "[1/4] AIR780ER pins: PWRKEY=GPIO%d inactive=%d RESET=GPIO%d USB_DP=GPIO%d USB_DN=GPIO%d",
@@ -141,6 +500,8 @@ static void modem_task(void *arg)
                                                              &on_ppp_got_ip, NULL));
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_event_handler_register(IP_EVENT, IP_EVENT_PPP_LOST_IP,
                                                              &on_ppp_lost_ip, NULL));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID,
+                                                             &on_ppp_status, NULL));
 
     ESP_LOGI(TAG, "[2/4] Installing USB CDC host driver");
     usbh_cdc_driver_config_t cdc_config = {
@@ -161,8 +522,9 @@ static void modem_task(void *arg)
     } else {
         s_cdc_installed = true;
     }
+    set_boot_stage(MODEM_BOOT_STAGE_USB_HOST_READY);
 
-    ESP_LOGI(TAG, "[3/4] Installing iot_usbh_modem 2.x (VID=0x19D1 PID=0x0001 modem_itf=2)");
+    ESP_LOGI(TAG, "[3/4] Installing iot_usbh_modem 2.x (VID=0x19D1 PID=0x0001 modem_itf=2 AT_itf=-1)");
     usbh_modem_config_t modem_config = {
         .modem_id_list = s_usb_modem_id_list,
         .at_tx_buffer_size = MODEM_AT_BUFFER_SIZE,
@@ -177,6 +539,7 @@ static void modem_task(void *arg)
         return;
     }
     s_modem_installed = true;
+    set_boot_stage(MODEM_BOOT_STAGE_USB_MODEM_INSTALLED);
     ESP_LOGI(TAG, "[3/4] iot_usbh_modem installed OK");
 
     /*
@@ -202,22 +565,27 @@ static void modem_task(void *arg)
             if (has_ip) {
                 ESP_LOGI(TAG, "[4/4] PPP netif has IP: " IPSTR, IP2STR(&ip.ip));
                 s_connected = true;
+                set_boot_stage(MODEM_BOOT_STAGE_PPP_GOT_IP);
                 break;
             }
 
-            ESP_LOGI(TAG, "[4/4] Still waiting: elapsed=%u ms  connected=%d  kicked=%d  netif=%p",
-                     elapsed_ms, s_connected, kicked, (void *)ppp);
+            poll_modem_diagnostics(true);
+            at_handle_t at = usbh_modem_get_atparser();
+            ESP_LOGI(TAG, "[4/4] Still waiting: elapsed=%u ms connected=%d kicked=%d netif=%p at=%p stage=\"%s\"",
+                     elapsed_ms, s_connected, kicked, (void *)ppp, (void *)at, boot_stage_to_text(s_boot_stage));
             last_log_ms = elapsed_ms;
         }
 
-        if (!kicked && elapsed_ms >= POWERKEY_KICK_DELAY_MS) {
-            ESP_LOGW(TAG, "[4/4] USB not enumerated after %u ms — issuing POWERKEY kick", elapsed_ms);
+        if (!kicked && elapsed_ms >= POWERKEY_KICK_DELAY_MS && s_boot_stage < MODEM_BOOT_STAGE_USB_DEVICE_SEEN) {
+            ESP_LOGW(TAG, "[4/4] USB/AT not ready after %u ms — issuing POWERKEY kick", elapsed_ms);
             powerkey_kick();
             kicked = true;
         }
 
         if (elapsed_ms >= BOOT_TIMEOUT_MS) {
             ESP_LOGE(TAG, "[4/4] Boot timeout after %u ms (limit=%d ms)", elapsed_ms, BOOT_TIMEOUT_MS);
+            poll_modem_diagnostics(true);
+            log_final_failure_reason(kicked);
             break;
         }
 
@@ -228,6 +596,7 @@ static void modem_task(void *arg)
         ESP_LOGI(TAG, "=== AIR780ER 4G modem ready — PPP up ===");
     } else {
         ESP_LOGE(TAG, "=== AIR780ER 4G modem FAILED to connect ===");
+        log_final_failure_reason(kicked);
     }
 
     s_task_handle = NULL;
