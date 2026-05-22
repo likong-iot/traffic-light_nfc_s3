@@ -4,19 +4,11 @@
 #include "driver/spi_master.h"
 #include "driver/uart.h"
 
-/*
- * 引脚映射整理自《NFC红绿灯控制系统V1.0.pdf》
- * - 第 2 页：主控
- * - 第 3 页：NFC
- * - 第 4 页：网络
- * - 第 5 页：输出
- */
-
 /* 状态 / 控制 */
 #define PIN_LEDB                  GPIO_NUM_8
 #define LEDB_ACTIVE_LEVEL         0
 
-/* 新版 PCB 输入 */
+/* PCB 输入 */
 #define PIN_RTC_INT               GPIO_NUM_15 /* RX8025T-UB INT，外部下拉 */
 #define PIN_IO_IN1                GPIO_NUM_16
 #define PIN_IO_IN2                GPIO_NUM_38

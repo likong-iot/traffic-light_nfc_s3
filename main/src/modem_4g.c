@@ -99,6 +99,33 @@ static const char *boot_stage_to_text(modem_boot_stage_t stage)
     }
 }
 
+static const char *boot_wait_phase_to_text(modem_boot_stage_t stage)
+{
+    switch (stage) {
+    case MODEM_BOOT_STAGE_NOT_STARTED:
+    case MODEM_BOOT_STAGE_USB_HOST_READY:
+    case MODEM_BOOT_STAGE_USB_MODEM_INSTALLED:
+        return "等枚举";
+    case MODEM_BOOT_STAGE_USB_DEVICE_SEEN:
+    case MODEM_BOOT_STAGE_USB_ID_MATCHED:
+    case MODEM_BOOT_STAGE_USB_PORT_OPEN:
+    case MODEM_BOOT_STAGE_DTE_CONNECTED:
+    case MODEM_BOOT_STAGE_AT_PARSER_READY:
+        return "等 AT";
+    case MODEM_BOOT_STAGE_AT_OK:
+    case MODEM_BOOT_STAGE_SIM_READY:
+    case MODEM_BOOT_STAGE_SIGNAL_OK:
+    case MODEM_BOOT_STAGE_NETWORK_REGISTERED:
+        return "等 PPP";
+    case MODEM_BOOT_STAGE_PPP_DIALING:
+        return "等 IP";
+    case MODEM_BOOT_STAGE_PPP_GOT_IP:
+        return "已连接";
+    default:
+        return "等待中";
+    }
+}
+
 static const char *pin_state_to_text(esp_modem_pin_state_t state)
 {
     switch (state) {
@@ -571,8 +598,9 @@ static void modem_task(void *arg)
 
             poll_modem_diagnostics(true);
             at_handle_t at = usbh_modem_get_atparser();
-            ESP_LOGI(TAG, "[4/4] Still waiting: elapsed=%u ms connected=%d kicked=%d netif=%p at=%p stage=\"%s\"",
-                     elapsed_ms, s_connected, kicked, (void *)ppp, (void *)at, boot_stage_to_text(s_boot_stage));
+            ESP_LOGI(TAG, "[4/4] %s: elapsed=%u ms connected=%d kicked=%d netif=%p at=%p stage=\"%s\"",
+                     boot_wait_phase_to_text(s_boot_stage), elapsed_ms, s_connected, kicked,
+                     (void *)ppp, (void *)at, boot_stage_to_text(s_boot_stage));
             last_log_ms = elapsed_ms;
         }
 

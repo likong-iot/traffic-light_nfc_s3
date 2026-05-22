@@ -8,6 +8,7 @@
 #include "cJSON.h"
 #include "esp_log.h"
 #include "esp_check.h"
+#include "esp_mac.h"
 #include "nvs.h"
 #include "storage_sd.h"
 
@@ -20,6 +21,21 @@ static const char *TAG = "app_config";
 
 static app_config_t s_config;
 static bool s_inited = false;
+
+static void build_default_ap_name(char *out, size_t out_len)
+{
+    uint8_t mac[6] = {0};
+    if (out == NULL || out_len == 0) {
+        return;
+    }
+
+    if (esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP) != ESP_OK) {
+        strlcpy(out, "traffic_light", out_len);
+        return;
+    }
+
+    snprintf(out, out_len, "traffic_light_%02X%02X", mac[4], mac[5]);
+}
 
 static void app_config_apply_current_policy(app_config_t *cfg)
 {
@@ -42,6 +58,8 @@ static void app_config_set_defaults(app_config_t *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
     cfg->version = APP_CONFIG_VERSION;
+    build_default_ap_name(cfg->ap.ssid, sizeof(cfg->ap.ssid));
+    strlcpy(cfg->ap.password, "12345678", sizeof(cfg->ap.password));
     cfg->schedule.relay1_start_min = 18 * 60;
     cfg->schedule.relay1_end_min = 7 * 60;
     cfg->schedule.relay2_start_min = 18 * 60;
@@ -202,6 +220,18 @@ static bool load_from_json_text(app_config_t *cfg, const char *json)
         }
     }
 
+    cJSON *ap = cJSON_GetObjectItemCaseSensitive(root, "ap");
+    if (cJSON_IsObject(ap)) {
+        cJSON *ssid = cJSON_GetObjectItemCaseSensitive(ap, "ssid");
+        cJSON *password = cJSON_GetObjectItemCaseSensitive(ap, "password");
+        if (cJSON_IsString(ssid) && ssid->valuestring != NULL && ssid->valuestring[0] != '\0') {
+            strlcpy(cfg->ap.ssid, ssid->valuestring, sizeof(cfg->ap.ssid));
+        }
+        if (cJSON_IsString(password) && password->valuestring != NULL && password->valuestring[0] != '\0') {
+            strlcpy(cfg->ap.password, password->valuestring, sizeof(cfg->ap.password));
+        }
+    }
+
     cJSON *radar = cJSON_GetObjectItemCaseSensitive(root, "radar");
     if (cJSON_IsObject(radar)) {
         cJSON *enabled = cJSON_GetObjectItemCaseSensitive(radar, "enabled");
@@ -292,6 +322,10 @@ static char *create_json_text(const app_config_t *cfg)
     cJSON_AddStringToObject(relay2, "start", time_text);
     format_minutes(cfg->schedule.relay2_end_min, time_text, sizeof(time_text));
     cJSON_AddStringToObject(relay2, "end", time_text);
+
+    cJSON *ap = cJSON_AddObjectToObject(root, "ap");
+    cJSON_AddStringToObject(ap, "ssid", cfg->ap.ssid);
+    cJSON_AddStringToObject(ap, "password", cfg->ap.password);
 
     cJSON *nfc = cJSON_AddObjectToObject(root, "nfc");
     cJSON *rules = cJSON_AddArrayToObject(nfc, "rules");

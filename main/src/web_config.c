@@ -25,8 +25,6 @@
 
 static const char *TAG = "web_config";
 
-#define WEB_CONFIG_AP_PREFIX          "traffic_light_"
-#define WEB_CONFIG_AP_PASSWORD        "12345678"
 #define WEB_CONFIG_MAX_STA_CONN       4
 #define WEB_CONFIG_TASK_STACK         4096
 #define WEB_CONFIG_TASK_PRIORITY      2
@@ -39,6 +37,7 @@ static httpd_handle_t s_httpd = NULL;
 static TaskHandle_t s_schedule_task = NULL;
 static esp_netif_t *s_ap_netif = NULL;
 static char s_ap_ssid[33] = {0};
+static char s_ap_password[64] = {0};
 static bool s_started = false;
 static bool s_relay_state_valid = false;
 static bool s_last_relay1_closed = false;
@@ -55,6 +54,21 @@ static bool minute_in_window(int now_min, int start_min, int end_min)
         return now_min >= start_min && now_min < end_min;
     }
     return now_min >= start_min || now_min < end_min;
+}
+
+static void build_default_ap_name(char *out, size_t out_len)
+{
+    uint8_t mac[6] = {0};
+    if (out == NULL || out_len == 0) {
+        return;
+    }
+
+    if (esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP) != ESP_OK) {
+        strlcpy(out, "traffic_light", out_len);
+        return;
+    }
+
+    snprintf(out, out_len, "traffic_light_%02X%02X", mac[4], mac[5]);
 }
 
 static bool parse_time_minutes(const char *text, int *minutes)
@@ -187,6 +201,13 @@ static bool parse_int_range(const char *text, int min_value, int max_value, int 
     return true;
 }
 
+static bool valid_ap_text(const char *ssid, const char *password)
+{
+    size_t ssid_len = ssid ? strlen(ssid) : 0;
+    size_t password_len = password ? strlen(password) : 0;
+    return ssid_len > 0 && ssid_len <= 32 && password_len >= 8 && password_len <= 63;
+}
+
 static bool parse_hex_pair(const char *text, char out[3])
 {
     if (text == NULL || out == NULL || strlen(text) != 2) {
@@ -281,7 +302,7 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
                       ".layout{min-height:100vh}.side{position:fixed;left:0;top:0;bottom:0;width:180px;box-sizing:border-box;background:#14213d;color:#fff;padding:22px 16px;overflow-y:auto}.side h1{font-size:18px;margin:0 0 22px}.side a{display:block;color:#dbeafe;text-decoration:none;padding:10px 8px;border-radius:6px}.side a:hover{background:#263b65}.main{max-width:920px;margin-left:180px;padding:26px}.card{background:#fff;border:1px solid #d9dee7;border-radius:10px;padding:18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(16,24,40,.04)}"
                       "h2{margin:0 0 14px;font-size:22px}h3{margin:14px 0 10px}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}.nfc-head,.nfc-row{display:grid;grid-template-columns:90px 1.2fr 110px 160px;gap:10px;align-items:center;margin:8px 0}.nfc-head{font-size:13px;color:#66788a}.timebox{font-size:18px}.timebox span{font-weight:700}.msg{background:#e3f8e8;color:#176b37;padding:10px 12px;border-radius:6px;margin-bottom:14px}.warn{background:#fff7e6;color:#8a4b00;padding:10px 12px;border-radius:6px}.hint{font-size:13px;color:#66788a;line-height:1.6}.check{font-size:14px;color:#334e68}label{display:block;font-size:14px;color:#52606d;margin-bottom:6px}input{width:100%%;box-sizing:border-box;font-size:16px;padding:9px;border:1px solid #cbd2d9;border-radius:6px}input[type=checkbox]{width:auto}.btn{max-width:240px;margin-top:10px;padding:12px;font-size:17px;border:0;border-radius:6px;background:#0b6bcb;color:#fff}"
                       "@media(max-width:760px){.side{position:sticky;top:0;bottom:auto;width:auto;max-height:45vh;z-index:1}.side a{display:inline-block}.main{margin-left:0;padding:16px}.row,.nfc-head,.nfc-row{grid-template-columns:1fr}}"
-                      "</style></head><body><div class='layout'><nav class='side'><h1>NFC路灯控制器</h1><a href='#time'>时间配置</a><a href='#nfc'>NFC映射</a><a href='#radar'>雷达输入</a><a href='#status'>系统状态</a></nav><main class='main'>");
+                      "</style></head><body><div class='layout'><nav class='side'><h1>NFC路灯控制器</h1><a href='#time'>时间配置</a><a href='#ap'>AP配置</a><a href='#nfc'>NFC映射</a><a href='#radar'>雷达输入</a><a href='#status'>系统状态</a></nav><main class='main'>");
 
     if (message != NULL && message[0] != '\0') {
         ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos, "<div class='msg'>%s</div>", message);
@@ -296,6 +317,13 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
                       "<h3>继电器2</h3><div class='row'><div><label>闭合开始</label><input type='time' name='r2_start' value='%s' required></div><div><label>闭合结束</label><input type='time' name='r2_end' value='%s' required></div></div>"
                       "</section>",
                       board_time, r1_start, r1_end, r2_start, r2_end);
+
+    ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
+                      "<section id='ap' class='card'><h2>AP配置</h2>"
+                      "<p class='hint'>AP 名称最长 32 字节，密码长度 8~63 字节。保存后写入配置文件和 NVS；当前连接可能仍保持旧 AP，重启后一定使用新配置。</p>"
+                      "<div class='row'><div><label>AP 名称</label><input type='text' name='ap_ssid' value='%s' maxlength='32' required></div><div><label>AP 密码</label><input type='text' name='ap_password' value='%s' maxlength='63' minlength='8' required></div></div>"
+                      "</section>",
+                      cfg.ap.ssid, cfg.ap.password);
 
     ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
                       "<section id='nfc' class='card'><h2>NFC映射</h2>"
@@ -327,7 +355,7 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
                       app_config_source_name(cfg.source),
                       storage_sd_is_mounted() ? "已挂载" : "未挂载",
                       s_ap_ssid,
-                      WEB_CONFIG_AP_PASSWORD);
+                      s_ap_password);
 
     if (ok != 0) {
         free(html);
@@ -371,6 +399,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
 static bool parse_post_config(char *body, app_config_t *cfg)
 {
     char value[64];
+    char ap_ssid[64];
+    char ap_password[64];
     int r1_start = 0;
     int r1_end = 0;
     int r2_start = 0;
@@ -387,6 +417,18 @@ static bool parse_post_config(char *body, app_config_t *cfg)
     cfg->schedule.relay1_end_min = r1_end;
     cfg->schedule.relay2_start_min = r2_start;
     cfg->schedule.relay2_end_min = r2_end;
+
+    if (!form_get_value(body, "ap_ssid", ap_ssid, sizeof(ap_ssid))) {
+        return false;
+    }
+    if (!form_get_value(body, "ap_password", ap_password, sizeof(ap_password))) {
+        return false;
+    }
+    if (!valid_ap_text(ap_ssid, ap_password)) {
+        return false;
+    }
+    strlcpy(cfg->ap.ssid, ap_ssid, sizeof(cfg->ap.ssid));
+    strlcpy(cfg->ap.password, ap_password, sizeof(cfg->ap.password));
 
     cfg->radar.enabled = form_get_value(body, "radar_enabled", value, sizeof(value));
     if (!form_get_value(body, "radar_active", value, sizeof(value)) || !parse_int_range(value, 0, 1, &cfg->radar.active_level) ||
@@ -474,7 +516,8 @@ static esp_err_t save_post_handler(httpd_req_t *req)
         return err;
     }
 
-    ESP_LOGI(TAG, "config saved: NFC rules=%u radar=%s delay=%dms window=%dms",
+    ESP_LOGI(TAG, "config saved: AP=%s NFC rules=%u radar=%s delay=%dms window=%dms",
+             cfg.ap.ssid,
              (unsigned)cfg.nfc_rule_count,
              cfg.radar.enabled ? "enabled" : "disabled",
              cfg.radar.trigger_delay_ms,
@@ -540,10 +583,18 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 
 static esp_err_t start_softap(void)
 {
-    uint8_t mac[6] = {0};
-    ESP_RETURN_ON_ERROR(esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP), TAG, "read WiFi SoftAP MAC failed");
-
-    snprintf(s_ap_ssid, sizeof(s_ap_ssid), WEB_CONFIG_AP_PREFIX "%02X%02X", mac[4], mac[5]);
+    app_config_t cfg;
+    app_config_copy(&cfg);
+    if (cfg.ap.ssid[0] == '\0') {
+        build_default_ap_name(s_ap_ssid, sizeof(s_ap_ssid));
+    } else {
+        strlcpy(s_ap_ssid, cfg.ap.ssid, sizeof(s_ap_ssid));
+    }
+    if (cfg.ap.password[0] == '\0') {
+        strlcpy(s_ap_password, "12345678", sizeof(s_ap_password));
+    } else {
+        strlcpy(s_ap_password, cfg.ap.password, sizeof(s_ap_password));
+    }
 
     s_ap_netif = esp_netif_create_default_wifi_ap();
     if (s_ap_netif == NULL) {
@@ -570,7 +621,7 @@ static esp_err_t start_softap(void)
 
     wifi_config_t ap_cfg = {0};
     strlcpy((char *)ap_cfg.ap.ssid, s_ap_ssid, sizeof(ap_cfg.ap.ssid));
-    strlcpy((char *)ap_cfg.ap.password, WEB_CONFIG_AP_PASSWORD, sizeof(ap_cfg.ap.password));
+    strlcpy((char *)ap_cfg.ap.password, s_ap_password, sizeof(ap_cfg.ap.password));
     ap_cfg.ap.ssid_len = strlen(s_ap_ssid);
     ap_cfg.ap.channel = 1;
     ap_cfg.ap.max_connection = WEB_CONFIG_MAX_STA_CONN;
@@ -584,7 +635,7 @@ static esp_err_t start_softap(void)
     esp_netif_ip_info_t actual_ip = {0};
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_get_ip_info(s_ap_netif, &actual_ip));
     ESP_LOGI(TAG, "SoftAP started: SSID=%s password=%s IP=http://192.168.4.1/",
-             s_ap_ssid, WEB_CONFIG_AP_PASSWORD);
+             s_ap_ssid, s_ap_password);
     ESP_LOGI(TAG, "SoftAP netif: ip=" IPSTR " gw=" IPSTR " mask=" IPSTR " DHCP server=on",
              IP2STR(&actual_ip.ip), IP2STR(&actual_ip.gw), IP2STR(&actual_ip.netmask));
     return ESP_OK;

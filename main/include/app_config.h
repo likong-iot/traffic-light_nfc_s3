@@ -7,7 +7,7 @@
 #include "esp_err.h"
 
 enum {
-    APP_CONFIG_VERSION = 2,
+    APP_CONFIG_VERSION = 3,
     APP_CONFIG_MAX_NFC_RULES = 16,
 };
 
@@ -40,8 +40,14 @@ typedef struct {
 } app_schedule_config_t;
 
 typedef struct {
+    char ssid[33];
+    char password[64];
+} app_ap_config_t;
+
+typedef struct {
     int version;
     app_schedule_config_t schedule;
+    app_ap_config_t ap;
     app_nfc_rule_t nfc_rules[APP_CONFIG_MAX_NFC_RULES];
     size_t nfc_rule_count;
     app_radar_config_t radar;
