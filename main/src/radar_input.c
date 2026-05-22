@@ -45,35 +45,36 @@ static void radar_task(void *arg)
     ESP_LOGI(TAG, "radar input task started");
 
     while (1) {
-        const app_config_t *cfg = app_config_get();
+        app_config_t cfg_copy;
+        app_config_copy(&cfg_copy);
         board_inputs_t inputs = {0};
         if (board_hal_read_inputs(&inputs) == ESP_OK) {
-            bool in1 = trigger_level(&cfg->radar, inputs.io_in1);
-            bool in2 = trigger_level(&cfg->radar, inputs.io_in2);
+            bool in1 = trigger_level(&cfg_copy.radar, inputs.io_in1);
+            bool in2 = trigger_level(&cfg_copy.radar, inputs.io_in2);
             uint32_t now = now_ms();
 
             bool rising = (in1 && !state.last_in1) || (in2 && !state.last_in2);
-            if (cfg->radar.enabled && rising) {
-                if (!state.active || (uint32_t)(now - state.cycle_start_ms) >= (uint32_t)cfg->radar.cycle_window_ms) {
+            if (cfg_copy.radar.enabled && rising) {
+                if (!state.active || (uint32_t)(now - state.cycle_start_ms) >= (uint32_t)cfg_copy.radar.cycle_window_ms) {
                     state.active = true;
                     state.cycle_start_ms = now;
-                    state.fire_at_ms = now + (uint32_t)cfg->radar.trigger_delay_ms;
+                    state.fire_at_ms = now + (uint32_t)cfg_copy.radar.trigger_delay_ms;
                     state.fired = false;
-                    ESP_LOGI(TAG, "radar cycle started: delay=%d ms window=%d ms", cfg->radar.trigger_delay_ms, cfg->radar.cycle_window_ms);
+                    ESP_LOGI(TAG, "radar cycle started: delay=%d ms window=%d ms", cfg_copy.radar.trigger_delay_ms, cfg_copy.radar.cycle_window_ms);
                 } else {
-                    ESP_LOGI(TAG, "radar trigger ignored inside %d ms cycle window", cfg->radar.cycle_window_ms);
+                    ESP_LOGI(TAG, "radar trigger ignored inside %d ms cycle window", cfg_copy.radar.cycle_window_ms);
                 }
             }
 
             if (state.active && !state.fired && (int32_t)(now - state.fire_at_ms) >= 0) {
-                ESP_LOGI(TAG, "radar pulse firing: OPTO1+OPTO2 x%d", cfg->radar.opto12_pulses);
-                ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_pulse_opto12(cfg->radar.opto12_pulses,
+                ESP_LOGI(TAG, "radar pulse firing: OPTO1+OPTO2 x%d", cfg_copy.radar.opto12_pulses);
+                ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_pulse_opto12(cfg_copy.radar.opto12_pulses,
                                                                       RADAR_PULSE_ACTIVE_MS,
                                                                       RADAR_PULSE_GAP_MS));
                 state.fired = true;
             }
 
-            if (state.active && (uint32_t)(now - state.cycle_start_ms) >= (uint32_t)cfg->radar.cycle_window_ms) {
+            if (state.active && (uint32_t)(now - state.cycle_start_ms) >= (uint32_t)cfg_copy.radar.cycle_window_ms) {
                 state.active = false;
                 state.fired = false;
             }

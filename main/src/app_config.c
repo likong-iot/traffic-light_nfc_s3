@@ -9,6 +9,8 @@
 #include "esp_log.h"
 #include "esp_check.h"
 #include "esp_mac.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "nvs.h"
 #include "storage_sd.h"
 
@@ -21,8 +23,9 @@ static const char *TAG = "app_config";
 
 static app_config_t s_config;
 static bool s_inited = false;
+static SemaphoreHandle_t s_config_mutex = NULL;
 
-static void build_default_ap_name(char *out, size_t out_len)
+void app_config_build_default_ap_name(char *out, size_t out_len)
 {
     uint8_t mac[6] = {0};
     if (out == NULL || out_len == 0) {
@@ -58,7 +61,7 @@ static void app_config_set_defaults(app_config_t *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
     cfg->version = APP_CONFIG_VERSION;
-    build_default_ap_name(cfg->ap.ssid, sizeof(cfg->ap.ssid));
+    app_config_build_default_ap_name(cfg->ap.ssid, sizeof(cfg->ap.ssid));
     strlcpy(cfg->ap.password, "12345678", sizeof(cfg->ap.password));
     cfg->schedule.relay1_start_min = 18 * 60;
     cfg->schedule.relay1_end_min = 7 * 60;
@@ -69,6 +72,7 @@ static void app_config_set_defaults(app_config_t *cfg)
     cfg->radar.trigger_delay_ms = 5000;
     cfg->radar.cycle_window_ms = 20000;
     cfg->radar.opto12_pulses = 1;
+    cfg->log_enabled = true;
 
     cfg->nfc_rule_count = 6;
     for (size_t i = 0; i < cfg->nfc_rule_count; ++i) {
@@ -246,6 +250,11 @@ static bool load_from_json_text(app_config_t *cfg, const char *json)
         if (opto12_pulses != NULL) ok &= parse_int(opto12_pulses, &cfg->radar.opto12_pulses);
     }
 
+    cJSON *log_enabled = cJSON_GetObjectItemCaseSensitive(root, "log_enabled");
+    if (log_enabled != NULL) {
+        parse_bool(log_enabled, &cfg->log_enabled);
+    }
+
     cJSON *nfc = cJSON_GetObjectItemCaseSensitive(root, "nfc");
     if (cJSON_IsObject(nfc)) {
         cJSON *rules = cJSON_GetObjectItemCaseSensitive(nfc, "rules");
@@ -345,6 +354,8 @@ static char *create_json_text(const app_config_t *cfg)
     cJSON_AddNumberToObject(radar, "trigger_delay_ms", cfg->radar.trigger_delay_ms);
     cJSON_AddNumberToObject(radar, "cycle_window_ms", cfg->radar.cycle_window_ms);
     cJSON_AddNumberToObject(radar, "opto12_pulses", cfg->radar.opto12_pulses);
+
+    cJSON_AddBoolToObject(root, "log_enabled", cfg->log_enabled);
 
     char *text = cJSON_Print(root);
     cJSON_Delete(root);
@@ -461,6 +472,13 @@ esp_err_t app_config_init(void)
         return ESP_OK;
     }
 
+    if (s_config_mutex == NULL) {
+        s_config_mutex = xSemaphoreCreateMutex();
+        if (s_config_mutex == NULL) {
+            return ESP_ERR_NO_MEM;
+        }
+    }
+
     app_config_set_defaults(&s_config);
 
     esp_err_t err = load_from_sd(&s_config);
@@ -506,7 +524,9 @@ void app_config_copy(app_config_t *out)
     if (!s_inited) {
         ESP_ERROR_CHECK(app_config_init());
     }
+    xSemaphoreTake(s_config_mutex, portMAX_DELAY);
     *out = s_config;
+    xSemaphoreGive(s_config_mutex);
 }
 
 esp_err_t app_config_save(const app_config_t *cfg)
@@ -514,13 +534,19 @@ esp_err_t app_config_save(const app_config_t *cfg)
     if (cfg == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
+
+    xSemaphoreTake(s_config_mutex, portMAX_DELAY);
     s_config = *cfg;
     s_config.version = APP_CONFIG_VERSION;
+    xSemaphoreGive(s_config_mutex);
 
     bool sd_mounted = storage_sd_is_mounted();
     esp_err_t err_sd = save_to_sd(&s_config);
     esp_err_t err_nvs = save_to_nvs(&s_config);
+
+    xSemaphoreTake(s_config_mutex, portMAX_DELAY);
     s_config.source = (err_sd == ESP_OK) ? APP_CONFIG_SOURCE_SD : APP_CONFIG_SOURCE_NVS;
+    xSemaphoreGive(s_config_mutex);
 
     if (err_sd != ESP_OK) {
         ESP_LOGW(TAG, "save to SD failed: %s", esp_err_to_name(err_sd));
@@ -537,13 +563,6 @@ esp_err_t app_config_save(const app_config_t *cfg)
     return ESP_OK;
 }
 
-static bool is_hex_ascii(uint8_t value)
-{
-    return (value >= '0' && value <= '9') ||
-           (value >= 'a' && value <= 'f') ||
-           (value >= 'A' && value <= 'F');
-}
-
 esp_err_t app_config_find_nfc_action(uint8_t data0, uint8_t data1, app_nfc_rule_t *rule)
 {
     if (!s_inited) {
@@ -551,11 +570,9 @@ esp_err_t app_config_find_nfc_action(uint8_t data0, uint8_t data1, app_nfc_rule_
     }
 
     char data_text[3] = {0};
-    if (is_hex_ascii(data0) && is_hex_ascii(data1)) {
+    if (isxdigit(data0) && isxdigit(data1)) {
         data_text[0] = (char)toupper((unsigned char)data0);
         data_text[1] = (char)toupper((unsigned char)data1);
-    } else if (data0 == 0x00 && data1 <= 0x0F) {
-        snprintf(data_text, sizeof(data_text), "%02X", data1);
     } else {
         snprintf(data_text, sizeof(data_text), "%02X", data0);
     }
@@ -563,15 +580,20 @@ esp_err_t app_config_find_nfc_action(uint8_t data0, uint8_t data1, app_nfc_rule_
     if (rule != NULL) {
         memset(rule, 0, sizeof(*rule));
     }
+
+    xSemaphoreTake(s_config_mutex, portMAX_DELAY);
+    esp_err_t ret = ESP_ERR_NOT_FOUND;
     for (size_t i = 0; i < s_config.nfc_rule_count; ++i) {
         if (strncmp(s_config.nfc_rules[i].data, data_text, 2) == 0) {
             if (rule != NULL) {
                 *rule = s_config.nfc_rules[i];
             }
-            return ESP_OK;
+            ret = ESP_OK;
+            break;
         }
     }
-    return ESP_ERR_NOT_FOUND;
+    xSemaphoreGive(s_config_mutex);
+    return ret;
 }
 
 const char *app_config_source_name(app_config_source_t source)

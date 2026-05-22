@@ -51,6 +51,7 @@ typedef struct {
     app_nfc_rule_t nfc_rules[APP_CONFIG_MAX_NFC_RULES];
     size_t nfc_rule_count;
     app_radar_config_t radar;
+    bool log_enabled;
     app_config_source_t source;
 } app_config_t;
 
@@ -60,3 +61,4 @@ void app_config_copy(app_config_t *out);
 esp_err_t app_config_save(const app_config_t *cfg);
 esp_err_t app_config_find_nfc_action(uint8_t data0, uint8_t data1, app_nfc_rule_t *rule);
 const char *app_config_source_name(app_config_source_t source);
+void app_config_build_default_ap_name(char *out, size_t out_len);

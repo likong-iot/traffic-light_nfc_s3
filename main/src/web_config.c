@@ -56,21 +56,6 @@ static bool minute_in_window(int now_min, int start_min, int end_min)
     return now_min >= start_min || now_min < end_min;
 }
 
-static void build_default_ap_name(char *out, size_t out_len)
-{
-    uint8_t mac[6] = {0};
-    if (out == NULL || out_len == 0) {
-        return;
-    }
-
-    if (esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP) != ESP_OK) {
-        strlcpy(out, "traffic_light", out_len);
-        return;
-    }
-
-    snprintf(out, out_len, "traffic_light_%02X%02X", mac[4], mac[5]);
-}
-
 static bool parse_time_minutes(const char *text, int *minutes)
 {
     if (text == NULL || minutes == NULL) {
@@ -119,6 +104,35 @@ static void format_board_time(char *out, size_t out_len)
     struct tm tm_info = {0};
     localtime_r(&now, &tm_info);
     snprintf(out, out_len, "%02d:%02d", tm_info.tm_hour, tm_info.tm_min);
+}
+
+static void html_escape(const char *src, char *dst, size_t dst_len)
+{
+    if (src == NULL || dst == NULL || dst_len == 0) {
+        return;
+    }
+    size_t pos = 0;
+    while (*src != '\0' && pos < dst_len - 1) {
+        const char *esc = NULL;
+        switch (*src) {
+        case '<': esc = "&lt;"; break;
+        case '>': esc = "&gt;"; break;
+        case '&': esc = "&amp;"; break;
+        case '"': esc = "&quot;"; break;
+        case '\'': esc = "&#39;"; break;
+        default: break;
+        }
+        if (esc != NULL) {
+            size_t elen = strlen(esc);
+            if (pos + elen >= dst_len) break;
+            memcpy(dst + pos, esc, elen);
+            pos += elen;
+        } else {
+            dst[pos++] = *src;
+        }
+        src++;
+    }
+    dst[pos] = '\0';
 }
 
 static int hex_value(char c)
@@ -248,10 +262,14 @@ static int append_nfc_rows(char *html, size_t html_len, size_t *pos, const app_c
         char name_key[16];
         char pulse_key[16];
         char relay_key[16];
+        char esc_data[16] = {0};
+        char esc_name[200] = {0};
         snprintf(data_key, sizeof(data_key), "nfc%u_data", (unsigned)i);
         snprintf(name_key, sizeof(name_key), "nfc%u_name", (unsigned)i);
         snprintf(pulse_key, sizeof(pulse_key), "nfc%u_pulses", (unsigned)i);
         snprintf(relay_key, sizeof(relay_key), "nfc%u_relay4", (unsigned)i);
+        html_escape(rule->data, esc_data, sizeof(esc_data));
+        html_escape(rule->name, esc_name, sizeof(esc_name));
         if (append_html(html, html_len, pos,
                     "<div class='nfc-row'>"
                     "<input name='%s' value='%s' maxlength='2' placeholder='00'>"
@@ -259,8 +277,8 @@ static int append_nfc_rows(char *html, size_t html_len, size_t *pos, const app_c
                     "<input name='%s' type='number' min='1' max='20' value='%d'>"
                     "<label class='check'><input name='%s' type='checkbox' value='1' %s> 断开继电器4</label>"
                     "</div>",
-                    data_key, rule->data,
-                    name_key, rule->name,
+                    data_key, esc_data,
+                    name_key, esc_name,
                     pulse_key, rule->opto12_pulses > 0 ? rule->opto12_pulses : 1,
                     relay_key, rule->open_relay4 ? "checked" : "") != 0) {
             return -1;
@@ -285,6 +303,11 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
     format_time_minutes(cfg.schedule.relay2_end_min, r2_end, sizeof(r2_end));
     format_board_time(board_time, sizeof(board_time));
 
+    char esc_ssid[200] = {0};
+    char esc_password[400] = {0};
+    html_escape(cfg.ap.ssid, esc_ssid, sizeof(esc_ssid));
+    html_escape(cfg.ap.password, esc_password, sizeof(esc_password));
+
     char *html = malloc(WEB_CONFIG_HTML_BUFFER_SIZE);
     if (html == NULL) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no memory");
@@ -302,7 +325,7 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
                       ".layout{min-height:100vh}.side{position:fixed;left:0;top:0;bottom:0;width:180px;box-sizing:border-box;background:#14213d;color:#fff;padding:22px 16px;overflow-y:auto}.side h1{font-size:18px;margin:0 0 22px}.side a{display:block;color:#dbeafe;text-decoration:none;padding:10px 8px;border-radius:6px}.side a:hover{background:#263b65}.main{max-width:920px;margin-left:180px;padding:26px}.card{background:#fff;border:1px solid #d9dee7;border-radius:10px;padding:18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(16,24,40,.04)}"
                       "h2{margin:0 0 14px;font-size:22px}h3{margin:14px 0 10px}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}.nfc-head,.nfc-row{display:grid;grid-template-columns:90px 1.2fr 110px 160px;gap:10px;align-items:center;margin:8px 0}.nfc-head{font-size:13px;color:#66788a}.timebox{font-size:18px}.timebox span{font-weight:700}.msg{background:#e3f8e8;color:#176b37;padding:10px 12px;border-radius:6px;margin-bottom:14px}.warn{background:#fff7e6;color:#8a4b00;padding:10px 12px;border-radius:6px}.hint{font-size:13px;color:#66788a;line-height:1.6}.check{font-size:14px;color:#334e68}label{display:block;font-size:14px;color:#52606d;margin-bottom:6px}input{width:100%%;box-sizing:border-box;font-size:16px;padding:9px;border:1px solid #cbd2d9;border-radius:6px}input[type=checkbox]{width:auto}.btn{max-width:240px;margin-top:10px;padding:12px;font-size:17px;border:0;border-radius:6px;background:#0b6bcb;color:#fff}"
                       "@media(max-width:760px){.side{position:sticky;top:0;bottom:auto;width:auto;max-height:45vh;z-index:1}.side a{display:inline-block}.main{margin-left:0;padding:16px}.row,.nfc-head,.nfc-row{grid-template-columns:1fr}}"
-                      "</style></head><body><div class='layout'><nav class='side'><h1>NFC路灯控制器</h1><a href='#time'>时间配置</a><a href='#ap'>AP配置</a><a href='#nfc'>NFC映射</a><a href='#radar'>雷达输入</a><a href='#status'>系统状态</a></nav><main class='main'>");
+                      "</style></head><body><div class='layout'><nav class='side'><h1>NFC路灯控制器</h1><a href='#time'>时间配置</a><a href='#ap'>AP配置</a><a href='#nfc'>NFC映射</a><a href='#radar'>雷达输入</a><a href='#log'>NFC日志</a><a href='#status'>系统状态</a></nav><main class='main'>");
 
     if (message != NULL && message[0] != '\0') {
         ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos, "<div class='msg'>%s</div>", message);
@@ -323,7 +346,7 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
                       "<p class='hint'>AP 名称最长 32 字节，密码长度 8~63 字节。保存后写入配置文件和 NVS；当前连接可能仍保持旧 AP，重启后一定使用新配置。</p>"
                       "<div class='row'><div><label>AP 名称</label><input type='text' name='ap_ssid' value='%s' maxlength='32' required></div><div><label>AP 密码</label><input type='text' name='ap_password' value='%s' maxlength='63' minlength='8' required></div></div>"
                       "</section>",
-                      cfg.ap.ssid, cfg.ap.password);
+                      esc_ssid, esc_password);
 
     ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
                       "<section id='nfc' class='card'><h2>NFC映射</h2>"
@@ -344,6 +367,13 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
                       cfg.radar.trigger_delay_ms,
                       cfg.radar.cycle_window_ms,
                       cfg.radar.opto12_pulses);
+
+    ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
+                      "<section id='log' class='card'><h2>NFC 日志</h2>"
+                      "<p class='hint'>启用后每小时将刷卡记录写入 SD 卡 /NFCLOG/ 目录，按日期分文件，保留 200 天。</p>"
+                      "<label class='check'><input type='checkbox' name='log_enabled' value='1' %s> 启用 NFC 日志记录</label>"
+                      "</section>",
+                      cfg.log_enabled ? "checked" : "");
 
     ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
                       "<section id='status' class='card'><h2>系统状态</h2>"
@@ -378,7 +408,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
 {
     char time_text[6] = {0};
     format_board_time(time_text, sizeof(time_text));
-    const app_config_t *cfg = app_config_get();
+    app_config_t cfg;
+    app_config_copy(&cfg);
 
     char body[256];
     int len = snprintf(body, sizeof(body),
@@ -386,7 +417,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
                        time_text,
                        time_sync_is_synced() ? "true" : "false",
                        storage_sd_is_mounted() ? "true" : "false",
-                       app_config_source_name(cfg->source));
+                       app_config_source_name(cfg.source));
     if (len < 0 || len >= (int)sizeof(body)) {
         return ESP_FAIL;
     }
@@ -437,6 +468,8 @@ static bool parse_post_config(char *body, app_config_t *cfg)
         !form_get_value(body, "radar_pulses", value, sizeof(value)) || !parse_int_range(value, 1, 20, &cfg->radar.opto12_pulses)) {
         return false;
     }
+
+    cfg->log_enabled = form_get_value(body, "log_enabled", value, sizeof(value));
 
     size_t count = 0;
     for (size_t i = 0; i < APP_CONFIG_MAX_NFC_RULES; ++i) {
@@ -586,7 +619,7 @@ static esp_err_t start_softap(void)
     app_config_t cfg;
     app_config_copy(&cfg);
     if (cfg.ap.ssid[0] == '\0') {
-        build_default_ap_name(s_ap_ssid, sizeof(s_ap_ssid));
+        app_config_build_default_ap_name(s_ap_ssid, sizeof(s_ap_ssid));
     } else {
         strlcpy(s_ap_ssid, cfg.ap.ssid, sizeof(s_ap_ssid));
     }
@@ -648,7 +681,8 @@ static void apply_relay_schedule_once(void)
         return;
     }
 
-    const app_config_t *cfg = app_config_get();
+    app_config_t cfg_local;
+    app_config_copy(&cfg_local);
     time_t now = 0;
     time(&now);
 
@@ -656,8 +690,8 @@ static void apply_relay_schedule_once(void)
     localtime_r(&now, &tm_info);
     int now_min = tm_info.tm_hour * 60 + tm_info.tm_min;
 
-    bool relay1_closed = minute_in_window(now_min, cfg->schedule.relay1_start_min, cfg->schedule.relay1_end_min);
-    bool relay2_closed = minute_in_window(now_min, cfg->schedule.relay2_start_min, cfg->schedule.relay2_end_min);
+    bool relay1_closed = minute_in_window(now_min, cfg_local.schedule.relay1_start_min, cfg_local.schedule.relay1_end_min);
+    bool relay2_closed = minute_in_window(now_min, cfg_local.schedule.relay2_start_min, cfg_local.schedule.relay2_end_min);
     bool changed = !s_relay_state_valid ||
                    relay1_closed != s_last_relay1_closed ||
                    relay2_closed != s_last_relay2_closed;
@@ -687,10 +721,7 @@ static void schedule_task(void *arg)
 {
     (void)arg;
 
-    setenv("TZ", "CST-8", 1);
-    tzset();
-
-    ESP_LOGI(TAG, "relay schedule task started; timezone=Asia/Shanghai");
+    ESP_LOGI(TAG, "relay schedule task started");
     while (1) {
         apply_relay_schedule_once();
         vTaskDelay(pdMS_TO_TICKS(WEB_CONFIG_SCHEDULE_POLL_MS));

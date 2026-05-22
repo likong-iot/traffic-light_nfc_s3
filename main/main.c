@@ -1,6 +1,7 @@
 #include "app.h"
 #include "app_config.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "board_hal.h"
@@ -29,6 +30,10 @@ static const char *TAG = "main";
  */
 #ifndef APP_ENABLE_4G_MODEM
 #define APP_ENABLE_4G_MODEM 1
+#endif
+
+#ifndef APP_ENABLE_PERIPHERAL_TEST
+#define APP_ENABLE_PERIPHERAL_TEST 0
 #endif
 
 static app_devices_t s_devices = {0};
@@ -139,13 +144,19 @@ void app_main(void)
     ESP_LOGI(TAG, "================================================");
 
     ESP_ERROR_CHECK(platform_init());
+
+    setenv("TZ", "CST-8", 1);
+    tzset();
+
     ESP_ERROR_CHECK(devices_init(&s_devices));
     ESP_ERROR_CHECK(app_config_init());
     ESP_ERROR_CHECK(time_sync_start());
     ESP_ERROR_CHECK(app_work_start(&s_devices));
     ESP_ERROR_CHECK(radar_input_start());
     ESP_ERROR_CHECK(web_config_start());
+#if APP_ENABLE_PERIPHERAL_TEST
     ESP_ERROR_CHECK(peripheral_test_start());
+#endif
 
     ESP_LOGI(TAG, "================================================");
     ESP_LOGI(TAG, "  Main init complete; time sync + app work + test tasks are running");

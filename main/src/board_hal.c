@@ -8,6 +8,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "i2cdev.h"
 #include "pcf8574.h"
@@ -17,6 +18,7 @@ static const char *TAG = "board_hal";
 static i2c_dev_t s_pcf_dev = {0};
 static bool s_pcf_ready = false;
 static uint8_t s_pcf_port_state = 0xFF;
+static SemaphoreHandle_t s_pcf_mutex = NULL;
 
 #define OPTO_INACTIVE_LEVEL 0
 #define OPTO_ACTIVE_LEVEL   1
@@ -95,6 +97,13 @@ static esp_err_t init_i2c_and_pcf8574(void)
         return err;
     }
     ESP_LOGI(TAG, "  [I2C 4/4] PCF8574 port write OK");
+
+    s_pcf_mutex = xSemaphoreCreateMutex();
+    if (s_pcf_mutex == NULL) {
+        pcf8574_free_desc(&s_pcf_dev);
+        ESP_LOGE(TAG, "  PCF8574 mutex creation failed");
+        return ESP_ERR_NO_MEM;
+    }
 
     s_pcf_ready = true;
     ESP_LOGI(TAG, "  PCF8574 @0x%02X ready (SDA=GPIO%d SCL=GPIO%d freq=%d Hz)",
@@ -199,6 +208,8 @@ static esp_err_t board_hal_set_pcf_led(int led_num, int bit_num, bool on)
         return ESP_ERR_INVALID_STATE;
     }
 
+    xSemaphoreTake(s_pcf_mutex, portMAX_DELAY);
+
     uint8_t bit = BIT(bit_num);
     int level = on ? PCF8574_LED_ACTIVE_LEVEL : !PCF8574_LED_ACTIVE_LEVEL;
     if (level == 0) {
@@ -210,11 +221,13 @@ static esp_err_t board_hal_set_pcf_led(int led_num, int bit_num, bool on)
     ESP_LOGI(TAG, "LED%d -> %s (PCF8574RGTR P%d=%d, port=0x%02X)",
              led_num, on ? "ON" : "OFF", bit_num, level, s_pcf_port_state);
     esp_err_t err = pcf8574_port_write(&s_pcf_dev, s_pcf_port_state);
+
+    xSemaphoreGive(s_pcf_mutex);
+
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "LED%d PCF8574RGTR write failed: %s", led_num, esp_err_to_name(err));
-        return err;
     }
-    return ESP_OK;
+    return err;
 }
 
 esp_err_t board_hal_set_ledb(bool on)
@@ -282,6 +295,8 @@ esp_err_t board_hal_set_relay(int relay_num, bool closed)
         return ESP_ERR_INVALID_STATE;
     }
 
+    xSemaphoreTake(s_pcf_mutex, portMAX_DELAY);
+
     int bit_num = PCF8574_RELAY1_BIT + relay_num - 1;
     uint8_t bit = BIT(bit_num);
     if (closed) {
@@ -297,11 +312,13 @@ esp_err_t board_hal_set_relay(int relay_num, bool closed)
              closed ? 0 : 1,
              s_pcf_port_state);
     esp_err_t err = pcf8574_port_write(&s_pcf_dev, s_pcf_port_state);
+
+    xSemaphoreGive(s_pcf_mutex);
+
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Relay%d PCF8574RGTR write failed: %s", relay_num, esp_err_to_name(err));
-        return err;
     }
-    return ESP_OK;
+    return err;
 }
 
 esp_err_t board_hal_set_all_relays(bool closed)
@@ -310,6 +327,8 @@ esp_err_t board_hal_set_all_relays(bool closed)
         ESP_LOGW(TAG, "All relay set skipped: PCF8574RGTR not ready");
         return ESP_ERR_INVALID_STATE;
     }
+
+    xSemaphoreTake(s_pcf_mutex, portMAX_DELAY);
 
     if (closed) {
         s_pcf_port_state &= ~(BIT(PCF8574_RELAY1_BIT) |
@@ -330,11 +349,13 @@ esp_err_t board_hal_set_all_relays(bool closed)
              closed ? "LOW" : "HIGH",
              s_pcf_port_state);
     esp_err_t err = pcf8574_port_write(&s_pcf_dev, s_pcf_port_state);
+
+    xSemaphoreGive(s_pcf_mutex);
+
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Relays1..4 PCF8574RGTR write failed: %s", esp_err_to_name(err));
-        return err;
     }
-    return ESP_OK;
+    return err;
 }
 
 esp_err_t board_hal_pulse_relay(int relay_num, int pulse_count, int active_ms, int inactive_gap_ms)

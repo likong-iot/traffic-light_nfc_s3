@@ -1,8 +1,11 @@
 #include "app.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "app_config.h"
@@ -10,11 +13,13 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 #include "modem_4g.h"
 #include "net_eth.h"
 #include "nfc_pn532.h"
 #include "storage_sd.h"
+#include "time_sync.h"
 
 static const char *TAG = "app";
 
@@ -25,7 +30,24 @@ static const char *TAG = "app";
 #define APP_IO_PULSE_HIGH_MS     50
 #define APP_IO_PULSE_LOW_GAP_MS  50
 
+#define APP_LOG_QUEUE_SIZE       64
+#define APP_LOG_FLUSH_TASK_STACK 4096
+#define APP_LOG_FLUSH_TASK_PRIO  2
+#define APP_LOG_FLUSH_INTERVAL_MS (3600 * 1000)
+#define APP_LOG_MAX_DAYS         200
+#define APP_LOG_DIR              "/NFCLOG"
+
+typedef struct {
+    time_t timestamp;
+    uint8_t uid[10];
+    uint8_t uid_len;
+    uint8_t data[2];
+    char rule_name[32];
+} nfc_log_entry_t;
+
 static TaskHandle_t s_work_task = NULL;
+static TaskHandle_t s_log_task = NULL;
+static QueueHandle_t s_log_queue = NULL;
 
 static void bytes_to_hex(const uint8_t *data, size_t len, char *out, size_t out_len)
 {
@@ -44,76 +66,124 @@ static void bytes_to_hex(const uint8_t *data, size_t len, char *out, size_t out_
     }
 }
 
-static esp_err_t app_append_sd_log(const char *line)
+static void app_log_enqueue(const nfc_card_command_t *card, const char *rule_name)
 {
-    if (line == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    if (!storage_sd_is_mounted()) {
-        ESP_LOGW(TAG, "[work] SD not mounted, log skipped: %s", line);
-        return ESP_ERR_INVALID_STATE;
+    if (s_log_queue == NULL || card == NULL) {
+        return;
     }
 
-    char path[64];
-    int path_len = snprintf(path, sizeof(path), "%s/NFCLOG.TXT", storage_sd_mount_point());
-    if (path_len < 0 || path_len >= (int)sizeof(path)) {
-        return ESP_FAIL;
+    nfc_log_entry_t entry = {0};
+    time(&entry.timestamp);
+    memcpy(entry.uid, card->uid, card->uid_length);
+    entry.uid_len = card->uid_length;
+    entry.data[0] = card->data[0];
+    entry.data[1] = card->data[1];
+    if (rule_name != NULL) {
+        strlcpy(entry.rule_name, rule_name, sizeof(entry.rule_name));
     }
 
-    FILE *f = fopen(path, "a");
-    if (f == NULL) {
-        ESP_LOGE(TAG, "[work] open log '%s' failed: errno=%d (%s)",
-                 path, errno, strerror(errno));
-        return ESP_FAIL;
+    if (xQueueSend(s_log_queue, &entry, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "[log] queue full, entry dropped");
     }
-
-    if (fprintf(f, "%s\r\n", line) < 0) {
-        ESP_LOGE(TAG, "[work] write log failed: errno=%d (%s)", errno, strerror(errno));
-        fclose(f);
-        return ESP_FAIL;
-    }
-    fflush(f);
-    int fd = fileno(f);
-    if (fd >= 0) {
-        fsync(fd);
-    }
-    fclose(f);
-    return ESP_OK;
 }
 
-static void app_log_nfc_event(const char *event,
-                              const nfc_card_command_t *card,
-                              esp_err_t result,
-                              int pulse_count)
+static void app_log_delete_old_files(const char *dir_path, int max_days)
 {
-    char uid_hex[3 * 10] = {0};
-    char data_hex[3 * 16] = {0};
-    char line[256];
-
-    if (card != NULL) {
-        bytes_to_hex(card->uid, card->uid_length, uid_hex, sizeof(uid_hex));
-        bytes_to_hex(card->data, card->data_length, data_hex, sizeof(data_hex));
-    } else {
-        strcpy(uid_hex, "-");
-        strcpy(data_hex, "-");
+    DIR *dir = opendir(dir_path);
+    if (dir == NULL) {
+        return;
     }
 
-    snprintf(line, sizeof(line),
-             "tick_ms=%lu,event=%s,uid=%s,source=%s,data=%s,cmd=%d,pulses=%d,result=%s",
-             (unsigned long)(xTaskGetTickCount() * portTICK_PERIOD_MS),
-             event ? event : "-",
-             uid_hex,
-             card && card->source ? card->source : "-",
-             data_hex,
-             card ? (int)card->command_value : -1,
-             pulse_count,
-             esp_err_to_name(result));
+    time_t now = 0;
+    time(&now);
+    time_t cutoff = now - (time_t)max_days * 86400;
 
-    ESP_LOGI(TAG, "[work] log: %s", line);
+    struct tm cutoff_tm = {0};
+    gmtime_r(&cutoff, &cutoff_tm);
+    char cutoff_name[32];
+    int cy = cutoff_tm.tm_year + 1900;
+    int cm = cutoff_tm.tm_mon + 1;
+    int cd = cutoff_tm.tm_mday;
+    snprintf(cutoff_name, sizeof(cutoff_name), "%04d%02d%02d.TXT", cy, cm, cd);
 
-    esp_err_t log_err = app_append_sd_log(line);
-    if (log_err != ESP_OK && log_err != ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(TAG, "[work] SD log write skipped/failed: %s", esp_err_to_name(log_err));
+    struct dirent *entry = NULL;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strlen(entry->d_name) == 12 && strcmp(entry->d_name, cutoff_name) < 0) {
+            char path[256];
+            snprintf(path, sizeof(path), "%s/%.12s", dir_path, entry->d_name);
+            if (unlink(path) == 0) {
+                ESP_LOGI(TAG, "[log] deleted old log: %s", entry->d_name);
+            }
+        }
+    }
+    closedir(dir);
+}
+
+static void app_log_flush_task(void *arg)
+{
+    (void)arg;
+    ESP_LOGI(TAG, "[log] flush task started, interval=%d ms", APP_LOG_FLUSH_INTERVAL_MS);
+
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(APP_LOG_FLUSH_INTERVAL_MS));
+
+        app_config_t cfg;
+        app_config_copy(&cfg);
+        if (!cfg.log_enabled) {
+            nfc_log_entry_t discard;
+            while (xQueueReceive(s_log_queue, &discard, 0) == pdTRUE) {}
+            continue;
+        }
+
+        if (!storage_sd_is_mounted() || !time_sync_is_synced()) {
+            continue;
+        }
+
+        char dir_path[64];
+        snprintf(dir_path, sizeof(dir_path), "%s%s", storage_sd_mount_point(), APP_LOG_DIR);
+        mkdir(dir_path, 0755);
+
+        time_t now = 0;
+        time(&now);
+        struct tm now_tm = {0};
+        localtime_r(&now, &now_tm);
+        int fy = now_tm.tm_year + 1900;
+        int fm = now_tm.tm_mon + 1;
+        int fd = now_tm.tm_mday;
+        char file_path[128];
+        snprintf(file_path, sizeof(file_path), "%s/%04d%02d%02d.TXT", dir_path, fy, fm, fd);
+
+        nfc_log_entry_t entry;
+        int count = 0;
+        FILE *f = NULL;
+
+        while (xQueueReceive(s_log_queue, &entry, 0) == pdTRUE) {
+            if (f == NULL) {
+                f = fopen(file_path, "a");
+                if (f == NULL) {
+                    ESP_LOGE(TAG, "[log] open '%s' failed: %s", file_path, strerror(errno));
+                    break;
+                }
+            }
+
+            struct tm entry_tm = {0};
+            localtime_r(&entry.timestamp, &entry_tm);
+            char uid_hex[3 * 10] = {0};
+            bytes_to_hex(entry.uid, entry.uid_len, uid_hex, sizeof(uid_hex));
+
+            fprintf(f, "%04d-%02d-%02d %02d:%02d:%02d,UID=%s,DATA=%02X%02X,CMD=%s\r\n",
+                    entry_tm.tm_year + 1900, entry_tm.tm_mon + 1, entry_tm.tm_mday,
+                    entry_tm.tm_hour, entry_tm.tm_min, entry_tm.tm_sec,
+                    uid_hex, entry.data[0], entry.data[1], entry.rule_name);
+            count++;
+        }
+
+        if (f != NULL) {
+            fclose(f);
+            ESP_LOGI(TAG, "[log] flushed %d entries to %s", count, file_path);
+        }
+
+        app_log_delete_old_files(dir_path, APP_LOG_MAX_DAYS);
     }
 }
 
@@ -133,9 +203,6 @@ static void app_work_task(void *arg)
     ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_led1(true));
     ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(3, false));
     ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(4, true));
-    ESP_LOGI(TAG, "Work task owns NFC command loop, OPTO1+OPTO2 pulses, LEDB/LED1 status, relay defaults, SD logging, and status");
-    ESP_LOGI(TAG, "[work] NFC command rules are loaded from app_config (SD -> NVS -> defaults)");
-    ESP_LOGI(TAG, "[work] startup relay rule: relay1/2 schedule-controlled, relay3 RELEASED, relay4 CLOSED");
 
     uint8_t last_uid[10] = {0};
     uint8_t last_uid_len = 0;
@@ -152,23 +219,20 @@ static void app_work_task(void *arg)
                     esp_err_t match_err = app_config_find_nfc_action(card.data[0], card.data[1], &rule);
                     if (match_err != ESP_OK) {
                         ESP_LOGW(TAG, "[work] unsupported NFC data[0..1]=%02X %02X", card.data[0], card.data[1]);
-                        app_log_nfc_event("card_data_unsupported", &card, ESP_ERR_NOT_SUPPORTED, 0);
-                        continue;
-                    }
+                    } else {
+                        ESP_LOGI(TAG, "[work] NFC matched '%s': OPTO1+OPTO2 %d pulse(s), relay4=%s",
+                                 rule.name, rule.opto12_pulses,
+                                 rule.open_relay4 ? "release" : "no-action");
 
-                    ESP_LOGI(TAG, "[work] NFC data[0..1]=%02X %02X matched '%s': OPTO1+OPTO2 %d pulse(s), relay4=%s",
-                             card.data[0], card.data[1], rule.name, rule.opto12_pulses,
-                             rule.open_relay4 ? "release" : "no-action");
-                    app_log_nfc_event("card_read", &card, ESP_OK, rule.opto12_pulses);
+                        app_log_enqueue(&card, rule.name);
 
-                    esp_err_t pulse_err = board_hal_pulse_opto12(rule.opto12_pulses,
-                                                                 APP_IO_PULSE_HIGH_MS,
-                                                                 APP_IO_PULSE_LOW_GAP_MS);
-                    app_log_nfc_event("opto12_pulse", &card, pulse_err, rule.opto12_pulses);
+                        board_hal_pulse_opto12(rule.opto12_pulses,
+                                              APP_IO_PULSE_HIGH_MS,
+                                              APP_IO_PULSE_LOW_GAP_MS);
 
-                    if (rule.open_relay4) {
-                        esp_err_t relay_err = board_hal_set_relay(4, false);
-                        app_log_nfc_event("relay4_open", &card, relay_err, 0);
+                        if (rule.open_relay4) {
+                            board_hal_set_relay(4, false);
+                        }
                     }
 
                     memcpy(last_uid, card.uid, card.uid_length);
@@ -177,14 +241,11 @@ static void app_work_task(void *arg)
                 }
             } else if (err == ESP_ERR_NOT_FOUND) {
                 if (card_latched) {
-                    ESP_LOGI(TAG, "[work] NFC card removed; next card read will trigger again");
+                    ESP_LOGI(TAG, "[work] NFC card removed");
                 }
                 card_latched = false;
                 last_uid_len = 0;
                 memset(last_uid, 0, sizeof(last_uid));
-            } else {
-                ESP_LOGW(TAG, "[work] NFC command read failed: %s", esp_err_to_name(err));
-                app_log_nfc_event("card_read_failed", &card, err, 0);
             }
         }
 
@@ -211,8 +272,15 @@ esp_err_t app_work_start(const app_devices_t *devices)
         return ESP_OK;
     }
 
-    ESP_LOGI(TAG, "Starting app work task: stack=%d prio=%d",
-             APP_WORK_TASK_STACK, APP_WORK_TASK_PRIORITY);
+    s_log_queue = xQueueCreate(APP_LOG_QUEUE_SIZE, sizeof(nfc_log_entry_t));
+    if (s_log_queue == NULL) {
+        return ESP_ERR_NO_MEM;
+    }
+
+    xTaskCreatePinnedToCore(app_log_flush_task, "nfc_log",
+                            APP_LOG_FLUSH_TASK_STACK, NULL,
+                            APP_LOG_FLUSH_TASK_PRIO, &s_log_task, tskNO_AFFINITY);
+
     BaseType_t ok = xTaskCreatePinnedToCore(app_work_task,
                                             "app_work",
                                             APP_WORK_TASK_STACK,
