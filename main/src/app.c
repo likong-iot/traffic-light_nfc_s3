@@ -110,7 +110,11 @@ static void app_log_nfc_event(const char *event,
              esp_err_to_name(result));
 
     ESP_LOGI(TAG, "[work] log: %s", line);
-    ESP_ERROR_CHECK_WITHOUT_ABORT(app_append_sd_log(line));
+
+    esp_err_t log_err = app_append_sd_log(line);
+    if (log_err != ESP_OK && log_err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "[work] SD log write skipped/failed: %s", esp_err_to_name(log_err));
+    }
 }
 
 static bool same_card_uid(const nfc_card_command_t *card, const uint8_t *last_uid, uint8_t last_uid_len)

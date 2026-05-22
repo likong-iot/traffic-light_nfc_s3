@@ -22,6 +22,7 @@ static const char *TAG = "time_sync";
 #define TIME_SYNC_TASK_PRIORITY       2
 #define TIME_SYNC_WAIT_POLL_MS        1000
 #define TIME_SYNC_WAIT_SNTP_MS        30000
+#define TIME_SYNC_BOOT_WAIT_FOR_NET_MS 120000
 #define TIME_SYNC_RETRY_DELAY_MS      30000
 #define TIME_SYNC_DAILY_INTERVAL_MS   (24 * 60 * 60 * 1000UL)
 
@@ -143,6 +144,29 @@ static esp_err_t sync_time_from_rtc(void)
     return ESP_OK;
 }
 
+static esp_err_t wait_for_time_network(uint32_t timeout_ms)
+{
+    uint32_t waited_ms = 0;
+
+    while (waited_ms <= timeout_ms) {
+        uint8_t network_mask = current_network_mask();
+        if (network_mask != 0) {
+            ESP_LOGI(TAG, "network ready after wait: %s", network_mask_to_text(network_mask));
+            return ESP_OK;
+        }
+
+        if ((waited_ms % 5000) == 0) {
+            ESP_LOGI(TAG, "waiting for network time source (%" PRIu32 "/%" PRIu32 " ms)",
+                     waited_ms, timeout_ms);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(TIME_SYNC_WAIT_POLL_MS));
+        waited_ms += TIME_SYNC_WAIT_POLL_MS;
+    }
+
+    return ESP_ERR_TIMEOUT;
+}
+
 static void wait_until_next_sync(uint32_t *next_sync_ms)
 {
     if (next_sync_ms == NULL) {
@@ -179,12 +203,12 @@ static void time_sync_task(void *arg)
     }
 
     uint32_t next_sync_ms = tick_ms();
-    if (sync_time_from_network() == ESP_OK) {
+    if (wait_for_time_network(TIME_SYNC_BOOT_WAIT_FOR_NET_MS) == ESP_OK && sync_time_from_network() == ESP_OK) {
         next_sync_ms = tick_ms() + TIME_SYNC_DAILY_INTERVAL_MS;
         ESP_LOGI(TAG, "daily network time sync scheduled every 24h");
     } else if (rtc_ready && sync_time_from_rtc() == ESP_OK) {
-        next_sync_ms = tick_ms() + TIME_SYNC_DAILY_INTERVAL_MS;
-        ESP_LOGI(TAG, "network unavailable or failed; RTC time used until next daily network sync");
+        next_sync_ms = tick_ms() + TIME_SYNC_BOOT_WAIT_FOR_NET_MS;
+        ESP_LOGI(TAG, "network unavailable or failed; RTC time used, will retry network time later");
     } else {
         next_sync_ms = tick_ms() + TIME_SYNC_RETRY_DELAY_MS;
         ESP_LOGW(TAG, "no valid time source at boot; retrying soon");
@@ -208,7 +232,7 @@ static void time_sync_task(void *arg)
             ESP_LOGW(TAG, "network sync failed; falling back to RX8025T-UB");
             err = sync_time_from_rtc();
             if (err == ESP_OK) {
-                next_sync_ms = tick_ms() + TIME_SYNC_DAILY_INTERVAL_MS;
+                next_sync_ms = tick_ms() + TIME_SYNC_BOOT_WAIT_FOR_NET_MS;
                 continue;
             }
         } else {
