@@ -14,8 +14,8 @@ static const char *TAG = "radar_input";
 #define RADAR_TASK_STACK      4096
 #define RADAR_TASK_PRIORITY    3
 #define RADAR_POLL_MS         50
-#define RADAR_PULSE_ACTIVE_MS 60
-#define RADAR_PULSE_GAP_MS    60
+#define RADAR_PULSE_ACTIVE_MS 50
+#define RADAR_PULSE_GAP_MS    50
 
 typedef struct {
     bool active;
