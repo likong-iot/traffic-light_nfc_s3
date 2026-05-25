@@ -186,6 +186,40 @@ static void wait_until_next_sync(uint32_t *next_sync_ms)
     vTaskDelay(pdMS_TO_TICKS(wait_ms));
 }
 
+esp_err_t time_sync_bootstrap(void)
+{
+    ESP_LOGI(TAG, "=== time bootstrap start ===");
+    ESP_LOGI(TAG, "External RX8025T-UB RTC is on I2C; INT is GPIO%d", PIN_RTC_INT);
+
+    esp_err_t rtc_err = rtc_rx8025t_init();
+    if (rtc_err != ESP_OK) {
+        ESP_LOGW(TAG, "RX8025T-UB init failed during bootstrap: %s", esp_err_to_name(rtc_err));
+    }
+
+    if (current_network_mask() != 0) {
+        esp_err_t net_err = sync_time_from_network();
+        if (net_err == ESP_OK) {
+            ESP_LOGI(TAG, "=== time bootstrap done: network ===");
+            return ESP_OK;
+        }
+        ESP_LOGW(TAG, "bootstrap network sync failed: %s; trying RTC", esp_err_to_name(net_err));
+    } else {
+        ESP_LOGI(TAG, "bootstrap network unavailable; trying RTC before app work starts");
+    }
+
+    if (rtc_err == ESP_OK) {
+        esp_err_t rtc_apply_err = sync_time_from_rtc();
+        if (rtc_apply_err == ESP_OK) {
+            ESP_LOGI(TAG, "=== time bootstrap done: RTC ===");
+            return ESP_OK;
+        }
+        ESP_LOGW(TAG, "bootstrap RTC restore failed: %s", esp_err_to_name(rtc_apply_err));
+    }
+
+    ESP_LOGW(TAG, "=== time bootstrap done: no valid time source ===");
+    return ESP_ERR_NOT_FOUND;
+}
+
 static void time_sync_task(void *arg)
 {
     (void)arg;
@@ -203,7 +237,13 @@ static void time_sync_task(void *arg)
     }
 
     uint32_t next_sync_ms = tick_ms();
-    if (wait_for_time_network(TIME_SYNC_BOOT_WAIT_FOR_NET_MS) == ESP_OK && sync_time_from_network() == ESP_OK) {
+    if (s_network_synced) {
+        next_sync_ms = tick_ms() + TIME_SYNC_DAILY_INTERVAL_MS;
+        ESP_LOGI(TAG, "network time already ready; daily network time sync scheduled every 24h");
+    } else if (s_rtc_synced) {
+        next_sync_ms = tick_ms() + TIME_SYNC_BOOT_WAIT_FOR_NET_MS;
+        ESP_LOGI(TAG, "RTC time already restored; will retry network time later");
+    } else if (wait_for_time_network(TIME_SYNC_BOOT_WAIT_FOR_NET_MS) == ESP_OK && sync_time_from_network() == ESP_OK) {
         next_sync_ms = tick_ms() + TIME_SYNC_DAILY_INTERVAL_MS;
         ESP_LOGI(TAG, "daily network time sync scheduled every 24h");
     } else if (rtc_ready && sync_time_from_rtc() == ESP_OK) {

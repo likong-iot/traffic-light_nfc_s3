@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "esp-idf/esp-idf-lib__pcf8574",
+		"source" : "managed_components/esp-idf-lib__pcf8574"
+	}
+}

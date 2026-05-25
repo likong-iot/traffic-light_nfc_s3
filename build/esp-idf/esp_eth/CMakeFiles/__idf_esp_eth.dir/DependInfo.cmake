@@ -1,0 +1,27 @@
+
+# Consider dependencies only in project.
+set(CMAKE_DEPENDS_IN_PROJECT_ONLY OFF)
+
+# The set of languages for which implicit dependencies are needed:
+set(CMAKE_DEPENDS_LANGUAGES
+  )
+
+# The set of dependency files which are needed:
+set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/home/master/esp/v5.5/esp-idf/components/esp_eth/src/esp_eth.c" "esp-idf/esp_eth/CMakeFiles/__idf_esp_eth.dir/src/esp_eth.c.obj" "gcc" "esp-idf/esp_eth/CMakeFiles/__idf_esp_eth.dir/src/esp_eth.c.obj.d"
+  "/home/master/esp/v5.5/esp-idf/components/esp_eth/src/esp_eth_netif_glue.c" "esp-idf/esp_eth/CMakeFiles/__idf_esp_eth.dir/src/esp_eth_netif_glue.c.obj" "gcc" "esp-idf/esp_eth/CMakeFiles/__idf_esp_eth.dir/src/esp_eth_netif_glue.c.obj.d"
+  "/home/master/esp/v5.5/esp-idf/components/esp_eth/src/phy/esp_eth_phy_802_3.c" "esp-idf/esp_eth/CMakeFiles/__idf_esp_eth.dir/src/phy/esp_eth_phy_802_3.c.obj" "gcc" "esp-idf/esp_eth/CMakeFiles/__idf_esp_eth.dir/src/phy/esp_eth_phy_802_3.c.obj.d"
+  "/home/master/esp/v5.5/esp-idf/components/esp_eth/src/spi/w5500/esp_eth_mac_w5500.c" "esp-idf/esp_eth/CMakeFiles/__idf_esp_eth.dir/src/spi/w5500/esp_eth_mac_w5500.c.obj" "gcc" "esp-idf/esp_eth/CMakeFiles/__idf_esp_eth.dir/src/spi/w5500/esp_eth_mac_w5500.c.obj.d"
+  "/home/master/esp/v5.5/esp-idf/components/esp_eth/src/spi/w5500/esp_eth_phy_w5500.c" "esp-idf/esp_eth/CMakeFiles/__idf_esp_eth.dir/src/spi/w5500/esp_eth_phy_w5500.c.obj" "gcc" "esp-idf/esp_eth/CMakeFiles/__idf_esp_eth.dir/src/spi/w5500/esp_eth_phy_w5500.c.obj.d"
+  )
+
+# Targets to which this target links which contain Fortran sources.
+set(CMAKE_Fortran_TARGET_LINKED_INFO_FILES
+  )
+
+# Targets to which this target links which contain Fortran sources.
+set(CMAKE_Fortran_TARGET_FORWARD_LINKED_INFO_FILES
+  )
+
+# Fortran module output directory.
+set(CMAKE_Fortran_TARGET_MODULE_DIR "")

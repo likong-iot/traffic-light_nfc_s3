@@ -150,6 +150,10 @@ void app_main(void)
 
     ESP_ERROR_CHECK(devices_init(&s_devices));
     ESP_ERROR_CHECK(app_config_init());
+    esp_err_t boot_time_err = time_sync_bootstrap();
+    if (boot_time_err != ESP_OK) {
+        ESP_LOGW(TAG, "Boot time is not ready before app work starts: %s", esp_err_to_name(boot_time_err));
+    }
     ESP_ERROR_CHECK(time_sync_start());
     ESP_ERROR_CHECK(app_work_start(&s_devices));
     ESP_ERROR_CHECK(radar_input_start());

@@ -1,0 +1,2 @@
+/home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-ar qc libespressif__modem_at.a CMakeFiles/__idf_espressif__modem_at.dir/src/at_3gpp_ts_27_007.c.obj CMakeFiles/__idf_espressif__modem_at.dir/src/modem_at_parser.c.obj CMakeFiles/__idf_espressif__modem_at.dir/src/modules/ml302.c.obj CMakeFiles/__idf_espressif__modem_at.dir/src/modules/ym310.c.obj
+/home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-ranlib libespressif__modem_at.a

@@ -1,0 +1,2 @@
+/home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-ar qc libespressif__iot_eth.a CMakeFiles/__idf_espressif__iot_eth.dir/iot_eth.c.obj CMakeFiles/__idf_espressif__iot_eth.dir/iot_eth_netif_glue.c.obj
+/home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-ranlib libespressif__iot_eth.a

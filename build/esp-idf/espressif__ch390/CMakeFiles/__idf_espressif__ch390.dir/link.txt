@@ -1,0 +1,2 @@
+/home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-ar qc libespressif__ch390.a CMakeFiles/__idf_espressif__ch390.dir/src/esp_eth_mac_ch390.c.obj CMakeFiles/__idf_espressif__ch390.dir/src/esp_eth_phy_ch390.c.obj
+/home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-ranlib libespressif__ch390.a

@@ -1,0 +1,35 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/__idf_main.dir/main.c.obj"
+  "CMakeFiles/__idf_main.dir/main.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/app.c.obj"
+  "CMakeFiles/__idf_main.dir/src/app.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/app_config.c.obj"
+  "CMakeFiles/__idf_main.dir/src/app_config.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/board_hal.c.obj"
+  "CMakeFiles/__idf_main.dir/src/board_hal.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/modem_4g.c.obj"
+  "CMakeFiles/__idf_main.dir/src/modem_4g.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/net_eth.c.obj"
+  "CMakeFiles/__idf_main.dir/src/net_eth.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj"
+  "CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj"
+  "CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/radar_input.c.obj"
+  "CMakeFiles/__idf_main.dir/src/radar_input.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.obj"
+  "CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/storage_sd.c.obj"
+  "CMakeFiles/__idf_main.dir/src/storage_sd.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/time_sync.c.obj"
+  "CMakeFiles/__idf_main.dir/src/time_sync.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/web_config.c.obj"
+  "CMakeFiles/__idf_main.dir/src/web_config.c.obj.d"
+  "libmain.a"
+  "libmain.pdb"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang C)
+  include(CMakeFiles/__idf_main.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

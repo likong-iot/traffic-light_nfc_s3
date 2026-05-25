@@ -9,7 +9,6 @@
 #include <time.h>
 
 #include "app_config.h"
-#include "board_hal.h"
 #include "esp_check.h"
 #include "esp_err.h"
 #include "esp_http_server.h"
@@ -17,8 +16,6 @@
 #include "esp_mac.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "lwip/inet.h"
 #include "storage_sd.h"
 #include "time_sync.h"
@@ -26,35 +23,15 @@
 static const char *TAG = "web_config";
 
 #define WEB_CONFIG_MAX_STA_CONN       4
-#define WEB_CONFIG_TASK_STACK         4096
-#define WEB_CONFIG_TASK_PRIORITY      2
-#define WEB_CONFIG_SCHEDULE_POLL_MS   5000
 #define WEB_CONFIG_HTTP_STACK_SIZE    8192
 #define WEB_CONFIG_HTML_BUFFER_SIZE   18000
 #define WEB_CONFIG_BODY_MAX_SIZE      8192
 
 static httpd_handle_t s_httpd = NULL;
-static TaskHandle_t s_schedule_task = NULL;
 static esp_netif_t *s_ap_netif = NULL;
 static char s_ap_ssid[33] = {0};
 static char s_ap_password[64] = {0};
 static bool s_started = false;
-static bool s_relay_state_valid = false;
-static bool s_last_relay1_closed = false;
-static bool s_last_relay2_closed = false;
-
-static void apply_relay_schedule_once(void);
-
-static bool minute_in_window(int now_min, int start_min, int end_min)
-{
-    if (start_min == end_min) {
-        return true;
-    }
-    if (start_min < end_min) {
-        return now_min >= start_min && now_min < end_min;
-    }
-    return now_min >= start_min || now_min < end_min;
-}
 
 static bool parse_time_minutes(const char *text, int *minutes)
 {
@@ -261,27 +238,77 @@ static int append_nfc_rows(char *html, size_t html_len, size_t *pos, const app_c
         char data_key[16];
         char name_key[16];
         char pulse_key[16];
-        char relay_key[16];
         char esc_data[16] = {0};
         char esc_name[200] = {0};
         snprintf(data_key, sizeof(data_key), "nfc%u_data", (unsigned)i);
         snprintf(name_key, sizeof(name_key), "nfc%u_name", (unsigned)i);
         snprintf(pulse_key, sizeof(pulse_key), "nfc%u_pulses", (unsigned)i);
-        snprintf(relay_key, sizeof(relay_key), "nfc%u_relay4", (unsigned)i);
         html_escape(rule->data, esc_data, sizeof(esc_data));
         html_escape(rule->name, esc_name, sizeof(esc_name));
-        if (append_html(html, html_len, pos,
-                    "<div class='nfc-row'>"
-                    "<input name='%s' value='%s' maxlength='2' placeholder='00'>"
-                    "<input name='%s' value='%s' maxlength='31' placeholder='例如：1类卡'>"
-                    "<input name='%s' type='number' min='1' max='20' value='%d'>"
-                    "<label class='check'><input name='%s' type='checkbox' value='1' %s> 断开继电器4</label>"
-                    "</div>",
-                    data_key, esc_data,
-                    name_key, esc_name,
-                    pulse_key, rule->opto12_pulses > 0 ? rule->opto12_pulses : 1,
-                    relay_key, rule->open_relay4 ? "checked" : "") != 0) {
-            return -1;
+
+        const char *action_text = "仅映射 data 和 OPTO1+OPTO2 脉冲";
+        const char *timing_name = NULL;
+        int timing_value = 0;
+        int timing_max = 600000;
+        switch (i) {
+        case 0:
+            action_text = "1类卡：继电器4闭合，LED1点亮";
+            timing_name = "class1_led1_hold_ms";
+            timing_value = cfg->timing.class1_led1_hold_ms;
+            break;
+        case 1:
+            action_text = "2类卡：继电器4闭合，LED1点亮";
+            timing_name = "class2_led1_hold_ms";
+            timing_value = cfg->timing.class2_led1_hold_ms;
+            break;
+        case 2:
+            action_text = "3类卡：继电器4闭合，LED2等待，结束后补1个脉冲";
+            timing_name = "class3_led2_hold_ms";
+            timing_value = cfg->timing.class3_led2_hold_ms;
+            timing_max = 3600000;
+            break;
+        case 3:
+            action_text = "4类卡：LED2常亮，刷1类卡关闭";
+            break;
+        case 4:
+            action_text = "5类卡：继电器4断开，LED2常亮，取消3类尾脉冲";
+            break;
+        case 5:
+            action_text = "6类卡：LED2常亮，刷1类卡关闭";
+            break;
+        default:
+            break;
+        }
+
+        if (timing_name != NULL) {
+            if (append_html(html, html_len, pos,
+                        "<div class='nfc-row'>"
+                        "<input name='%s' value='%s' maxlength='2' placeholder='00'>"
+                        "<input name='%s' value='%s' maxlength='31' placeholder='例如：1类卡'>"
+                        "<input name='%s' type='number' min='1' max='20' value='%d'>"
+                        "<div class='actioncell'><span>%s</span><label class='mini'>时长(ms)<input name='%s' type='number' min='0' max='%d' value='%d'></label></div>"
+                        "</div>",
+                        data_key, esc_data,
+                        name_key, esc_name,
+                        pulse_key, rule->opto12_pulses > 0 ? rule->opto12_pulses : 1,
+                        action_text,
+                        timing_name, timing_max, timing_value) != 0) {
+                return -1;
+            }
+        } else {
+            if (append_html(html, html_len, pos,
+                        "<div class='nfc-row'>"
+                        "<input name='%s' value='%s' maxlength='2' placeholder='00'>"
+                        "<input name='%s' value='%s' maxlength='31' placeholder='例如：1类卡'>"
+                        "<input name='%s' type='number' min='1' max='20' value='%d'>"
+                        "<div class='actioncell'><span>%s</span></div>"
+                        "</div>",
+                        data_key, esc_data,
+                        name_key, esc_name,
+                        pulse_key, rule->opto12_pulses > 0 ? rule->opto12_pulses : 1,
+                        action_text) != 0) {
+                return -1;
+            }
         }
     }
     return 0;
@@ -323,9 +350,9 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
                       "<style>"
                       "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;background:#f4f6f8;color:#1f2933}"
                       ".layout{min-height:100vh}.side{position:fixed;left:0;top:0;bottom:0;width:180px;box-sizing:border-box;background:#14213d;color:#fff;padding:22px 16px;overflow-y:auto}.side h1{font-size:18px;margin:0 0 22px}.side a{display:block;color:#dbeafe;text-decoration:none;padding:10px 8px;border-radius:6px}.side a:hover{background:#263b65}.main{max-width:920px;margin-left:180px;padding:26px}.card{background:#fff;border:1px solid #d9dee7;border-radius:10px;padding:18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(16,24,40,.04)}"
-                      "h2{margin:0 0 14px;font-size:22px}h3{margin:14px 0 10px}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}.nfc-head,.nfc-row{display:grid;grid-template-columns:90px 1.2fr 110px 160px;gap:10px;align-items:center;margin:8px 0}.nfc-head{font-size:13px;color:#66788a}.timebox{font-size:18px}.timebox span{font-weight:700}.msg{background:#e3f8e8;color:#176b37;padding:10px 12px;border-radius:6px;margin-bottom:14px}.warn{background:#fff7e6;color:#8a4b00;padding:10px 12px;border-radius:6px}.hint{font-size:13px;color:#66788a;line-height:1.6}.check{font-size:14px;color:#334e68}label{display:block;font-size:14px;color:#52606d;margin-bottom:6px}input{width:100%%;box-sizing:border-box;font-size:16px;padding:9px;border:1px solid #cbd2d9;border-radius:6px}input[type=checkbox]{width:auto}.btn{max-width:240px;margin-top:10px;padding:12px;font-size:17px;border:0;border-radius:6px;background:#0b6bcb;color:#fff}"
+                      "h2{margin:0 0 14px;font-size:22px}h3{margin:14px 0 10px}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}.nfc-head,.nfc-row{display:grid;grid-template-columns:80px 1.1fr 100px 1.7fr;gap:10px;align-items:center;margin:8px 0}.nfc-head{font-size:13px;color:#66788a}.actioncell{font-size:14px;color:#334e68;line-height:1.5}.mini{margin-top:6px;font-size:13px}.mini input{margin-top:4px}.timebox{font-size:18px}.timebox span{font-weight:700}.msg{background:#e3f8e8;color:#176b37;padding:10px 12px;border-radius:6px;margin-bottom:14px}.warn{background:#fff7e6;color:#8a4b00;padding:10px 12px;border-radius:6px}.hint{font-size:13px;color:#66788a;line-height:1.6}.check{font-size:14px;color:#334e68}label{display:block;font-size:14px;color:#52606d;margin-bottom:6px}input{width:100%%;box-sizing:border-box;font-size:16px;padding:9px;border:1px solid #cbd2d9;border-radius:6px}input[type=checkbox]{width:auto}.btn{max-width:240px;margin-top:10px;padding:12px;font-size:17px;border:0;border-radius:6px;background:#0b6bcb;color:#fff}"
                       "@media(max-width:760px){.side{position:sticky;top:0;bottom:auto;width:auto;max-height:45vh;z-index:1}.side a{display:inline-block}.main{margin-left:0;padding:16px}.row,.nfc-head,.nfc-row{grid-template-columns:1fr}}"
-                      "</style></head><body><div class='layout'><nav class='side'><h1>NFC路灯控制器</h1><a href='#time'>时间配置</a><a href='#ap'>AP配置</a><a href='#nfc'>NFC映射</a><a href='#radar'>雷达输入</a><a href='#log'>NFC日志</a><a href='#status'>系统状态</a></nav><main class='main'>");
+                      "</style></head><body><div class='layout'><nav class='side'><h1>NFC路灯控制器</h1><a href='#time'>时间配置</a><a href='#ap'>AP配置</a><a href='#nfc'>NFC动作</a><a href='#radar'>雷达输入</a><a href='#log'>NFC日志</a><a href='#status'>系统状态</a></nav><main class='main'>");
 
     if (message != NULL && message[0] != '\0') {
         ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos, "<div class='msg'>%s</div>", message);
@@ -349,9 +376,9 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
                       esc_ssid, esc_password);
 
     ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
-                      "<section id='nfc' class='card'><h2>NFC映射</h2>"
-                      "<p class='hint'>只匹配卡内 data[0..1]，不匹配 UID。data 写两位十六进制，例如 00、01、04。默认 00..05 分别输出 1..6 个 OPTO1+OPTO2 脉冲，其中 02..05 会断开继电器4。</p>"
-                      "<div class='nfc-head'><span>data</span><span>名称</span><span>脉冲数</span><span>附加动作</span></div>");
+                      "<section id='nfc' class='card'><h2>NFC动作</h2>"
+                      "<p class='hint'>只匹配卡内 data[0..1]，不匹配 UID。00..05 固定对应 1..6 类卡；名称、OPTO1+OPTO2 脉冲数和相关动作时长在同一行配置。</p>"
+                      "<div class='nfc-head'><span>data</span><span>名称</span><span>脉冲数</span><span>动作/时长</span></div>");
     ok |= append_nfc_rows(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos, &cfg);
     ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos, "</section>");
 
@@ -360,13 +387,16 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
                       "<p class='hint'>IO_IN1(GPIO16) 和 IO_IN2(GPIO38) 接外部雷达 INT，高电平有效。任意一路触发后，两路共同进入同一个周期窗口；窗口内再次触发不会重复输出。</p>"
                       "<label class='check'><input type='checkbox' name='radar_enabled' value='1' %s> 启用雷达触发</label>"
                       "<div class='row'><div><label>有效电平</label><input type='number' name='radar_active' min='0' max='1' value='%d'></div><div><label>触发延时(ms)</label><input type='number' name='radar_delay' min='0' max='60000' value='%d'></div></div>"
-                      "<div class='row'><div><label>周期窗口(ms)</label><input type='number' name='radar_window' min='1000' max='600000' value='%d'></div><div><label>OPTO1+OPTO2脉冲数</label><input type='number' name='radar_pulses' min='1' max='20' value='%d'></div></div>"
+                      "<div class='row'><div><label>雷达触发后禁止再次触发时间(ms)</label><input type='number' name='radar_window' min='1000' max='600000' value='%d'></div><div><label>连续干扰周期数</label><input type='number' name='radar_cycles' min='1' max='20' value='%d'></div></div>"
+                      "<div class='row'><div><label>OPTO1+OPTO2脉冲数</label><input type='number' name='radar_pulses' min='1' max='20' value='%d'></div><div><label>雷达锁定时长(ms)</label><input type='number' name='radar_lockout_ms' min='0' max='3600000' value='%d'></div></div>"
                       "</section>",
                       cfg.radar.enabled ? "checked" : "",
                       cfg.radar.active_level,
                       cfg.radar.trigger_delay_ms,
                       cfg.radar.cycle_window_ms,
-                      cfg.radar.opto12_pulses);
+                      cfg.radar.interference_cycles,
+                      cfg.radar.opto12_pulses,
+                      cfg.radar.lockout_ms);
 
     ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
                       "<section id='log' class='card'><h2>NFC 日志</h2>"
@@ -436,6 +466,9 @@ static bool parse_post_config(char *body, app_config_t *cfg)
     int r1_end = 0;
     int r2_start = 0;
     int r2_end = 0;
+    int class1_led1_hold_ms = 0;
+    int class2_led1_hold_ms = 0;
+    int class3_led2_hold_ms = 0;
 
     if (!form_get_value(body, "r1_start", value, sizeof(value)) || !parse_time_minutes(value, &r1_start) ||
         !form_get_value(body, "r1_end", value, sizeof(value)) || !parse_time_minutes(value, &r1_end) ||
@@ -448,6 +481,18 @@ static bool parse_post_config(char *body, app_config_t *cfg)
     cfg->schedule.relay1_end_min = r1_end;
     cfg->schedule.relay2_start_min = r2_start;
     cfg->schedule.relay2_end_min = r2_end;
+
+    if (!form_get_value(body, "class1_led1_hold_ms", value, sizeof(value)) ||
+        !parse_int_range(value, 0, 600000, &class1_led1_hold_ms) ||
+        !form_get_value(body, "class2_led1_hold_ms", value, sizeof(value)) ||
+        !parse_int_range(value, 0, 600000, &class2_led1_hold_ms) ||
+        !form_get_value(body, "class3_led2_hold_ms", value, sizeof(value)) ||
+        !parse_int_range(value, 0, 3600000, &class3_led2_hold_ms)) {
+        return false;
+    }
+    cfg->timing.class1_led1_hold_ms = class1_led1_hold_ms;
+    cfg->timing.class2_led1_hold_ms = class2_led1_hold_ms;
+    cfg->timing.class3_led2_hold_ms = class3_led2_hold_ms;
 
     if (!form_get_value(body, "ap_ssid", ap_ssid, sizeof(ap_ssid))) {
         return false;
@@ -465,7 +510,9 @@ static bool parse_post_config(char *body, app_config_t *cfg)
     if (!form_get_value(body, "radar_active", value, sizeof(value)) || !parse_int_range(value, 0, 1, &cfg->radar.active_level) ||
         !form_get_value(body, "radar_delay", value, sizeof(value)) || !parse_int_range(value, 0, 60000, &cfg->radar.trigger_delay_ms) ||
         !form_get_value(body, "radar_window", value, sizeof(value)) || !parse_int_range(value, 1000, 600000, &cfg->radar.cycle_window_ms) ||
-        !form_get_value(body, "radar_pulses", value, sizeof(value)) || !parse_int_range(value, 1, 20, &cfg->radar.opto12_pulses)) {
+        !form_get_value(body, "radar_cycles", value, sizeof(value)) || !parse_int_range(value, 1, 20, &cfg->radar.interference_cycles) ||
+        !form_get_value(body, "radar_pulses", value, sizeof(value)) || !parse_int_range(value, 1, 20, &cfg->radar.opto12_pulses) ||
+        !form_get_value(body, "radar_lockout_ms", value, sizeof(value)) || !parse_int_range(value, 0, 3600000, &cfg->radar.lockout_ms)) {
         return false;
     }
 
@@ -498,8 +545,6 @@ static bool parse_post_config(char *body, app_config_t *cfg)
             return false;
         }
 
-        snprintf(key, sizeof(key), "nfc%u_relay4", (unsigned)i);
-        rule.open_relay4 = form_get_value(body, key, value, sizeof(value));
 
         cfg->nfc_rules[count++] = rule;
     }
@@ -549,13 +594,17 @@ static esp_err_t save_post_handler(httpd_req_t *req)
         return err;
     }
 
-    ESP_LOGI(TAG, "config saved: AP=%s NFC rules=%u radar=%s delay=%dms window=%dms",
+    ESP_LOGI(TAG, "config saved: AP=%s NFC rules=%u timing=[%d/%d/%d] radar=%s delay=%dms window=%dms cycles=%d lockout=%dms",
              cfg.ap.ssid,
              (unsigned)cfg.nfc_rule_count,
+             cfg.timing.class1_led1_hold_ms,
+             cfg.timing.class2_led1_hold_ms,
+             cfg.timing.class3_led2_hold_ms,
              cfg.radar.enabled ? "enabled" : "disabled",
              cfg.radar.trigger_delay_ms,
-             cfg.radar.cycle_window_ms);
-    apply_relay_schedule_once();
+             cfg.radar.cycle_window_ms,
+             cfg.radar.interference_cycles,
+             cfg.radar.lockout_ms);
     return send_config_page(req, "配置已保存：已写入 SD 卡（如已挂载）和 ESP32 NVS。");
 }
 
@@ -674,60 +723,6 @@ static esp_err_t start_softap(void)
     return ESP_OK;
 }
 
-static void apply_relay_schedule_once(void)
-{
-    if (!time_sync_is_synced()) {
-        ESP_LOGI(TAG, "[schedule] waiting for time sync before controlling relay1/relay2");
-        return;
-    }
-
-    app_config_t cfg_local;
-    app_config_copy(&cfg_local);
-    time_t now = 0;
-    time(&now);
-
-    struct tm tm_info = {0};
-    localtime_r(&now, &tm_info);
-    int now_min = tm_info.tm_hour * 60 + tm_info.tm_min;
-
-    bool relay1_closed = minute_in_window(now_min, cfg_local.schedule.relay1_start_min, cfg_local.schedule.relay1_end_min);
-    bool relay2_closed = minute_in_window(now_min, cfg_local.schedule.relay2_start_min, cfg_local.schedule.relay2_end_min);
-    bool changed = !s_relay_state_valid ||
-                   relay1_closed != s_last_relay1_closed ||
-                   relay2_closed != s_last_relay2_closed;
-
-    if (!s_relay_state_valid || relay1_closed != s_last_relay1_closed) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(1, relay1_closed));
-        s_last_relay1_closed = relay1_closed;
-    }
-    if (!s_relay_state_valid || relay2_closed != s_last_relay2_closed) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(2, relay2_closed));
-        s_last_relay2_closed = relay2_closed;
-    }
-    if (!s_relay_state_valid) {
-        s_relay_state_valid = true;
-    }
-
-    if (changed) {
-        ESP_LOGI(TAG, "[schedule] %02d:%02d relay1=%s relay2=%s",
-                 tm_info.tm_hour,
-                 tm_info.tm_min,
-                 relay1_closed ? "closed" : "released",
-                 relay2_closed ? "closed" : "released");
-    }
-}
-
-static void schedule_task(void *arg)
-{
-    (void)arg;
-
-    ESP_LOGI(TAG, "relay schedule task started");
-    while (1) {
-        apply_relay_schedule_once();
-        vTaskDelay(pdMS_TO_TICKS(WEB_CONFIG_SCHEDULE_POLL_MS));
-    }
-}
-
 esp_err_t web_config_start(void)
 {
     if (s_started) {
@@ -737,17 +732,6 @@ esp_err_t web_config_start(void)
     ESP_RETURN_ON_ERROR(app_config_init(), TAG, "app_config_init failed");
     ESP_RETURN_ON_ERROR(start_softap(), TAG, "start_softap failed");
     ESP_RETURN_ON_ERROR(start_http_server(), TAG, "start_http_server failed");
-
-    BaseType_t ok = xTaskCreatePinnedToCore(schedule_task,
-                                            "relay_sched",
-                                            WEB_CONFIG_TASK_STACK,
-                                            NULL,
-                                            WEB_CONFIG_TASK_PRIORITY,
-                                            &s_schedule_task,
-                                            tskNO_AFFINITY);
-    if (ok != pdPASS) {
-        return ESP_ERR_NO_MEM;
-    }
 
     s_started = true;
     return ESP_OK;

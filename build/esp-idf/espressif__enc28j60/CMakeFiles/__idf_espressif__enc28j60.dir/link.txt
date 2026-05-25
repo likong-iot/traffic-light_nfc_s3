@@ -1,0 +1,2 @@
+/home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-ar qc libespressif__enc28j60.a CMakeFiles/__idf_espressif__enc28j60.dir/src/esp_eth_mac_enc28j60.c.obj CMakeFiles/__idf_espressif__enc28j60.dir/src/esp_eth_phy_enc28j60.c.obj
+/home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-ranlib libespressif__enc28j60.a

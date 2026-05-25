@@ -1,0 +1,2 @@
+source /home/master/project/traffic-light_nfc_s3/build_codex/gdbinit/symbols
+source /home/master/project/traffic-light_nfc_s3/build_codex/gdbinit/connect

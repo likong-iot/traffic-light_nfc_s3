@@ -46,14 +46,6 @@ static void app_config_apply_current_policy(app_config_t *cfg)
         return;
     }
 
-    for (size_t i = 0; i < cfg->nfc_rule_count; ++i) {
-        if (strcmp(cfg->nfc_rules[i].data, "02") == 0 ||
-            strcmp(cfg->nfc_rules[i].data, "03") == 0 ||
-            strcmp(cfg->nfc_rules[i].data, "04") == 0 ||
-            strcmp(cfg->nfc_rules[i].data, "05") == 0) {
-            cfg->nfc_rules[i].open_relay4 = true;
-        }
-    }
     cfg->version = APP_CONFIG_VERSION;
 }
 
@@ -61,6 +53,9 @@ static void app_config_set_defaults(app_config_t *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
     cfg->version = APP_CONFIG_VERSION;
+    cfg->timing.class1_led1_hold_ms = 20 * 1000;
+    cfg->timing.class2_led1_hold_ms = 35 * 1000;
+    cfg->timing.class3_led2_hold_ms = 10 * 60 * 1000;
     app_config_build_default_ap_name(cfg->ap.ssid, sizeof(cfg->ap.ssid));
     strlcpy(cfg->ap.password, "12345678", sizeof(cfg->ap.password));
     cfg->schedule.relay1_start_min = 18 * 60;
@@ -69,8 +64,10 @@ static void app_config_set_defaults(app_config_t *cfg)
     cfg->schedule.relay2_end_min = 7 * 60;
     cfg->radar.enabled = true;
     cfg->radar.active_level = 1;
-    cfg->radar.trigger_delay_ms = 5000;
+    cfg->radar.trigger_delay_ms = 2000;
     cfg->radar.cycle_window_ms = 20000;
+    cfg->radar.interference_cycles = 3;
+    cfg->radar.lockout_ms = 300000;
     cfg->radar.opto12_pulses = 1;
     cfg->log_enabled = true;
 
@@ -79,7 +76,6 @@ static void app_config_set_defaults(app_config_t *cfg)
         snprintf(cfg->nfc_rules[i].data, sizeof(cfg->nfc_rules[i].data), "%02X", (unsigned)i);
         snprintf(cfg->nfc_rules[i].name, sizeof(cfg->nfc_rules[i].name), "类别%u卡", (unsigned)(i + 1));
         cfg->nfc_rules[i].opto12_pulses = (int)i + 1;
-        cfg->nfc_rules[i].open_relay4 = (i >= 2);
     }
     cfg->source = APP_CONFIG_SOURCE_DEFAULT;
 }
@@ -164,7 +160,6 @@ static bool parse_json_rule(cJSON *node, app_nfc_rule_t *rule)
     cJSON *data = cJSON_GetObjectItemCaseSensitive(node, "data");
     cJSON *name = cJSON_GetObjectItemCaseSensitive(node, "name");
     cJSON *pulses = cJSON_GetObjectItemCaseSensitive(node, "opto12_pulses");
-    cJSON *open_relay4 = cJSON_GetObjectItemCaseSensitive(node, "open_relay4");
 
     if (!cJSON_IsString(data) || !is_hex_text_pair(data->valuestring)) {
         return false;
@@ -181,9 +176,6 @@ static bool parse_json_rule(cJSON *node, app_nfc_rule_t *rule)
 
     if (!parse_int(pulses, &rule->opto12_pulses) || rule->opto12_pulses <= 0) {
         return false;
-    }
-    if (!parse_bool(open_relay4, &rule->open_relay4)) {
-        rule->open_relay4 = false;
     }
     return true;
 }
@@ -204,6 +196,16 @@ static bool load_from_json_text(app_config_t *cfg, const char *json)
     cJSON *version = cJSON_GetObjectItemCaseSensitive(root, "version");
     if (cJSON_IsNumber(version) && version->valueint > 0) {
         cfg->version = version->valueint;
+    }
+
+    cJSON *timing = cJSON_GetObjectItemCaseSensitive(root, "timing");
+    if (cJSON_IsObject(timing)) {
+        cJSON *class1 = cJSON_GetObjectItemCaseSensitive(timing, "class1_led1_hold_ms");
+        cJSON *class2 = cJSON_GetObjectItemCaseSensitive(timing, "class2_led1_hold_ms");
+        cJSON *class3 = cJSON_GetObjectItemCaseSensitive(timing, "class3_led2_hold_ms");
+        if (class1 != NULL) ok &= parse_int(class1, &cfg->timing.class1_led1_hold_ms);
+        if (class2 != NULL) ok &= parse_int(class2, &cfg->timing.class2_led1_hold_ms);
+        if (class3 != NULL) ok &= parse_int(class3, &cfg->timing.class3_led2_hold_ms);
     }
 
     cJSON *schedule = cJSON_GetObjectItemCaseSensitive(root, "schedule");
@@ -242,11 +244,15 @@ static bool load_from_json_text(app_config_t *cfg, const char *json)
         cJSON *active_level = cJSON_GetObjectItemCaseSensitive(radar, "active_level");
         cJSON *trigger_delay_ms = cJSON_GetObjectItemCaseSensitive(radar, "trigger_delay_ms");
         cJSON *cycle_window_ms = cJSON_GetObjectItemCaseSensitive(radar, "cycle_window_ms");
+        cJSON *interference_cycles = cJSON_GetObjectItemCaseSensitive(radar, "interference_cycles");
+        cJSON *lockout_ms = cJSON_GetObjectItemCaseSensitive(radar, "lockout_ms");
         cJSON *opto12_pulses = cJSON_GetObjectItemCaseSensitive(radar, "opto12_pulses");
         if (enabled != NULL) ok &= parse_bool(enabled, &cfg->radar.enabled);
         if (active_level != NULL) ok &= parse_int(active_level, &cfg->radar.active_level);
         if (trigger_delay_ms != NULL) ok &= parse_int(trigger_delay_ms, &cfg->radar.trigger_delay_ms);
         if (cycle_window_ms != NULL) ok &= parse_int(cycle_window_ms, &cfg->radar.cycle_window_ms);
+        if (interference_cycles != NULL) ok &= parse_int(interference_cycles, &cfg->radar.interference_cycles);
+        if (lockout_ms != NULL) ok &= parse_int(lockout_ms, &cfg->radar.lockout_ms);
         if (opto12_pulses != NULL) ok &= parse_int(opto12_pulses, &cfg->radar.opto12_pulses);
     }
 
@@ -319,6 +325,11 @@ static char *create_json_text(const app_config_t *cfg)
 
     cJSON_AddNumberToObject(root, "version", cfg->version);
 
+    cJSON *timing = cJSON_AddObjectToObject(root, "timing");
+    cJSON_AddNumberToObject(timing, "class1_led1_hold_ms", cfg->timing.class1_led1_hold_ms);
+    cJSON_AddNumberToObject(timing, "class2_led1_hold_ms", cfg->timing.class2_led1_hold_ms);
+    cJSON_AddNumberToObject(timing, "class3_led2_hold_ms", cfg->timing.class3_led2_hold_ms);
+
     cJSON *schedule = cJSON_AddObjectToObject(root, "schedule");
     cJSON *relay1 = cJSON_AddObjectToObject(schedule, "relay1");
     cJSON *relay2 = cJSON_AddObjectToObject(schedule, "relay2");
@@ -344,7 +355,6 @@ static char *create_json_text(const app_config_t *cfg)
         cJSON_AddStringToObject(item, "data", rule->data);
         cJSON_AddStringToObject(item, "name", rule->name);
         cJSON_AddNumberToObject(item, "opto12_pulses", rule->opto12_pulses);
-        cJSON_AddBoolToObject(item, "open_relay4", rule->open_relay4);
         cJSON_AddItemToArray(rules, item);
     }
 
@@ -353,6 +363,8 @@ static char *create_json_text(const app_config_t *cfg)
     cJSON_AddNumberToObject(radar, "active_level", cfg->radar.active_level);
     cJSON_AddNumberToObject(radar, "trigger_delay_ms", cfg->radar.trigger_delay_ms);
     cJSON_AddNumberToObject(radar, "cycle_window_ms", cfg->radar.cycle_window_ms);
+    cJSON_AddNumberToObject(radar, "interference_cycles", cfg->radar.interference_cycles);
+    cJSON_AddNumberToObject(radar, "lockout_ms", cfg->radar.lockout_ms);
     cJSON_AddNumberToObject(radar, "opto12_pulses", cfg->radar.opto12_pulses);
 
     cJSON_AddBoolToObject(root, "log_enabled", cfg->log_enabled);
@@ -563,30 +575,56 @@ esp_err_t app_config_save(const app_config_t *cfg)
     return ESP_OK;
 }
 
-esp_err_t app_config_find_nfc_action(uint8_t data0, uint8_t data1, app_nfc_rule_t *rule)
+static void format_nfc_data_key(uint8_t data0, uint8_t data1, char *out, size_t out_len)
+{
+    if (out == NULL || out_len < 3) {
+        return;
+    }
+
+    if (isxdigit((unsigned char)data0) && isxdigit((unsigned char)data1)) {
+        out[0] = (char)toupper((unsigned char)data0);
+        out[1] = (char)toupper((unsigned char)data1);
+        out[2] = '\0';
+        return;
+    }
+
+    if (data0 == 0x00 && data1 <= 0x0F) {
+        snprintf(out, out_len, "%02X", data1);
+        return;
+    }
+
+    snprintf(out, out_len, "%02X", data0);
+}
+
+esp_err_t app_config_find_nfc_action(uint8_t data0, uint8_t data1, app_nfc_rule_t *rule, uint8_t *class_id)
 {
     if (!s_inited) {
         ESP_RETURN_ON_ERROR(app_config_init(), TAG, "app_config_init failed");
     }
 
     char data_text[3] = {0};
-    if (isxdigit(data0) && isxdigit(data1)) {
-        data_text[0] = (char)toupper((unsigned char)data0);
-        data_text[1] = (char)toupper((unsigned char)data1);
-    } else {
-        snprintf(data_text, sizeof(data_text), "%02X", data0);
-    }
+    format_nfc_data_key(data0, data1, data_text, sizeof(data_text));
 
     if (rule != NULL) {
         memset(rule, 0, sizeof(*rule));
     }
+    if (class_id != NULL) {
+        *class_id = 0;
+    }
 
     xSemaphoreTake(s_config_mutex, portMAX_DELAY);
     esp_err_t ret = ESP_ERR_NOT_FOUND;
-    for (size_t i = 0; i < s_config.nfc_rule_count; ++i) {
+    size_t class_rows = s_config.nfc_rule_count;
+    if (class_rows > APP_CONFIG_CARD_CLASS_COUNT) {
+        class_rows = APP_CONFIG_CARD_CLASS_COUNT;
+    }
+    for (size_t i = 0; i < class_rows; ++i) {
         if (strncmp(s_config.nfc_rules[i].data, data_text, 2) == 0) {
             if (rule != NULL) {
                 *rule = s_config.nfc_rules[i];
+            }
+            if (class_id != NULL) {
+                *class_id = (uint8_t)(i + 1);
             }
             ret = ESP_OK;
             break;

@@ -5,6 +5,7 @@
 
 #include "esp_err.h"
 
+esp_err_t time_sync_bootstrap(void);
 esp_err_t time_sync_start(void);
 bool time_sync_is_synced(void);
 bool time_sync_is_network_synced(void);

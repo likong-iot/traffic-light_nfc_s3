@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "esp-idf/garag__esp-idf-pn532",
+		"source" : "managed_components/garag__esp-idf-pn532"
+	}
+}

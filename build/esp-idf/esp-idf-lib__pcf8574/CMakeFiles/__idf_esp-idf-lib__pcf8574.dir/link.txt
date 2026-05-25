@@ -1,0 +1,2 @@
+/home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-ar qc libesp-idf-lib__pcf8574.a "CMakeFiles/__idf_esp-idf-lib__pcf8574.dir/pcf8574.c.obj"
+/home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-ranlib libesp-idf-lib__pcf8574.a
