@@ -17,6 +17,7 @@
 #include "esp_netif.h"
 #include "esp_wifi.h"
 #include "lwip/inet.h"
+#include "ota_update.h"
 #include "storage_sd.h"
 #include "time_sync.h"
 
@@ -352,7 +353,7 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
                       ".layout{min-height:100vh}.side{position:fixed;left:0;top:0;bottom:0;width:180px;box-sizing:border-box;background:#14213d;color:#fff;padding:22px 16px;overflow-y:auto}.side h1{font-size:18px;margin:0 0 22px}.side a{display:block;color:#dbeafe;text-decoration:none;padding:10px 8px;border-radius:6px}.side a:hover{background:#263b65}.main{max-width:920px;margin-left:180px;padding:26px}.card{background:#fff;border:1px solid #d9dee7;border-radius:10px;padding:18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(16,24,40,.04)}"
                       "h2{margin:0 0 14px;font-size:22px}h3{margin:14px 0 10px}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}.nfc-head,.nfc-row{display:grid;grid-template-columns:80px 1.1fr 100px 1.7fr;gap:10px;align-items:center;margin:8px 0}.nfc-head{font-size:13px;color:#66788a}.actioncell{font-size:14px;color:#334e68;line-height:1.5}.mini{margin-top:6px;font-size:13px}.mini input{margin-top:4px}.timebox{font-size:18px}.timebox span{font-weight:700}.msg{background:#e3f8e8;color:#176b37;padding:10px 12px;border-radius:6px;margin-bottom:14px}.warn{background:#fff7e6;color:#8a4b00;padding:10px 12px;border-radius:6px}.hint{font-size:13px;color:#66788a;line-height:1.6}.check{font-size:14px;color:#334e68}label{display:block;font-size:14px;color:#52606d;margin-bottom:6px}input{width:100%%;box-sizing:border-box;font-size:16px;padding:9px;border:1px solid #cbd2d9;border-radius:6px}input[type=checkbox]{width:auto}.btn{max-width:240px;margin-top:10px;padding:12px;font-size:17px;border:0;border-radius:6px;background:#0b6bcb;color:#fff}"
                       "@media(max-width:760px){.side{position:sticky;top:0;bottom:auto;width:auto;max-height:45vh;z-index:1}.side a{display:inline-block}.main{margin-left:0;padding:16px}.row,.nfc-head,.nfc-row{grid-template-columns:1fr}}"
-                      "</style></head><body><div class='layout'><nav class='side'><h1>NFC路灯控制器</h1><a href='#time'>时间配置</a><a href='#ap'>AP配置</a><a href='#nfc'>NFC动作</a><a href='#radar'>雷达输入</a><a href='#log'>NFC日志</a><a href='#status'>系统状态</a></nav><main class='main'>");
+                      "</style></head><body><div class='layout'><nav class='side'><h1>NFC路灯控制器</h1><a href='#time'>时间配置</a><a href='#ap'>AP配置</a><a href='#nfc'>NFC动作</a><a href='#radar'>雷达输入</a><a href='#log'>NFC日志</a><a href='#status'>系统状态</a><a href='#ota'>固件升级</a></nav><main class='main'>");
 
     if (message != NULL && message[0] != '\0') {
         ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos, "<div class='msg'>%s</div>", message);
@@ -409,13 +410,49 @@ static esp_err_t send_config_page(httpd_req_t *req, const char *message)
                       "<section id='status' class='card'><h2>系统状态</h2>"
                       "<p>配置来源：<b>%s</b></p><p>SD卡：<b>%s</b></p><p>SoftAP：<b>%s</b>，密码：<b>%s</b></p>"
                       "<p class='warn'>配置保存时会同时写 SD 卡文件 <b>/CONFIG.JSN</b> 和 ESP32 NVS。没有 SD 卡时会至少保存到 NVS；下次插入 SD 卡后，SD 文件优先级最高。</p>"
-                      "</section><button class='btn' type='submit'>保存全部配置</button></form>"
-                      "<script>function updateTime(){fetch('/status',{cache:'no-store'}).then(function(r){return r.json()}).then(function(s){document.getElementById('board-time').textContent=s.time||'--:--'}).catch(function(){document.getElementById('board-time').textContent='--:--'})}setInterval(updateTime,5000);updateTime();</script>"
-                      "</main></div></body></html>",
+                      "</section><button class='btn' type='submit'>保存全部配置</button></form>",
                       app_config_source_name(cfg.source),
                       storage_sd_is_mounted() ? "已挂载" : "未挂载",
                       s_ap_ssid,
                       s_ap_password);
+
+    char esc_version[64] = {0};
+    html_escape(ota_running_version(), esc_version, sizeof(esc_version));
+    ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
+                      "<section id='ota' class='card'><h2>固件升级 (OTA)</h2>"
+                      "<p>当前版本：<b id='ota_ver'>%s</b></p>"
+                      "<p class='hint'>支持 http:// 和 https:// 链接。固件下载完成后会自动重启。</p>"
+                      "<div class='row'><div style='grid-column:1/3'><label>固件 bin 链接</label><input type='url' id='ota_url' placeholder='http(s)://example.com/app.bin' maxlength='255'></div></div>"
+                      "<button class='btn' type='button' id='ota_btn'>开始升级</button>"
+                      "<div style='margin-top:14px'><progress id='ota_pb' value='0' max='100' style='width:100%%;height:18px'></progress><div id='ota_text' style='margin-top:6px;color:#52606d'>就绪</div></div>"
+                      "</section>",
+                      esc_version);
+
+    ok |= append_html(html, WEB_CONFIG_HTML_BUFFER_SIZE, &pos,
+                      "<script>"
+                      "function updateTime(){fetch('/status',{cache:'no-store'}).then(function(r){return r.json()}).then(function(s){document.getElementById('board-time').textContent=s.time||'--:--'}).catch(function(){document.getElementById('board-time').textContent='--:--'})}"
+                      "setInterval(updateTime,5000);updateTime();"
+                      "var otaPolling=false;"
+                      "function pollOta(){fetch('/ota/status',{cache:'no-store'}).then(function(r){return r.json()}).then(function(s){"
+                      "var pb=document.getElementById('ota_pb');var t=document.getElementById('ota_text');"
+                      "var pct=s.total>0?Math.floor(s.downloaded*100/s.total):0;"
+                      "pb.value=pct;"
+                      "t.textContent=s.state+'  '+pct+'%  '+(s.message||'')+(s.total>0?'  ('+s.downloaded+'/'+s.total+')':'');"
+                      "if(s.state==='success'||s.state==='failed'||s.state==='idle'){otaPolling=false;}else{setTimeout(pollOta,1000);}"
+                      "}).catch(function(){if(otaPolling)setTimeout(pollOta,2000);});}"
+                      "document.getElementById('ota_btn').onclick=function(){"
+                      "var url=document.getElementById('ota_url').value.trim();"
+                      "if(!url){alert('请输入 OTA 链接');return;}"
+                      "if(!/^https?:\\/\\//.test(url)){alert('链接必须以 http:// 或 https:// 开头');return;}"
+                      "if(!confirm('确认升级到: '+url+' ?'))return;"
+                      "var fd=new FormData();fd.append('url',url);"
+                      "fetch('/ota/start',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(s){"
+                      "if(s.ok){otaPolling=true;pollOta();}else{alert('启动失败: '+s.error);}"
+                      "}).catch(function(e){alert('请求失败: '+e);});"
+                      "};"
+                      "pollOta();"
+                      "</script>"
+                      "</main></div></body></html>");
 
     if (ok != 0) {
         free(html);
@@ -608,6 +645,77 @@ static esp_err_t save_post_handler(httpd_req_t *req)
     return send_config_page(req, "配置已保存：已写入 SD 卡（如已挂载）和 ESP32 NVS。");
 }
 
+static esp_err_t ota_status_get_handler(httpd_req_t *req)
+{
+    ota_status_t st = {0};
+    ota_update_get_status(&st);
+
+    char esc_msg[256] = {0};
+    html_escape(st.message, esc_msg, sizeof(esc_msg));
+
+    char body[512];
+    int len = snprintf(body, sizeof(body),
+                       "{\"state\":\"%s\",\"downloaded\":%d,\"total\":%d,\"message\":\"%s\"}",
+                       ota_state_name(st.state),
+                       st.bytes_downloaded,
+                       st.bytes_total,
+                       esc_msg);
+    if (len < 0 || len >= (int)sizeof(body)) {
+        return ESP_FAIL;
+    }
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_send(req, body, HTTPD_RESP_USE_STRLEN);
+}
+
+static esp_err_t ota_start_post_handler(httpd_req_t *req)
+{
+    if (req->content_len <= 0 || req->content_len > 1024) {
+        httpd_resp_set_type(req, "application/json");
+        return httpd_resp_send(req, "{\"ok\":false,\"error\":\"invalid body\"}", HTTPD_RESP_USE_STRLEN);
+    }
+
+    char *body = calloc(1, req->content_len + 1);
+    if (body == NULL) {
+        httpd_resp_set_type(req, "application/json");
+        return httpd_resp_send(req, "{\"ok\":false,\"error\":\"no memory\"}", HTTPD_RESP_USE_STRLEN);
+    }
+
+    int received = 0;
+    while (received < req->content_len) {
+        int ret = httpd_req_recv(req, body + received, req->content_len - received);
+        if (ret <= 0) {
+            free(body);
+            httpd_resp_set_type(req, "application/json");
+            return httpd_resp_send(req, "{\"ok\":false,\"error\":\"recv failed\"}", HTTPD_RESP_USE_STRLEN);
+        }
+        received += ret;
+    }
+    body[received] = '\0';
+
+    char url[256] = {0};
+    bool got_url = form_get_value(body, "url", url, sizeof(url));
+    free(body);
+
+    if (!got_url || url[0] == '\0') {
+        httpd_resp_set_type(req, "application/json");
+        return httpd_resp_send(req, "{\"ok\":false,\"error\":\"missing url\"}", HTTPD_RESP_USE_STRLEN);
+    }
+
+    esp_err_t err = ota_update_start(url);
+    if (err != ESP_OK) {
+        char body_resp[160];
+        snprintf(body_resp, sizeof(body_resp),
+                 "{\"ok\":false,\"error\":\"%s\"}", esp_err_to_name(err));
+        httpd_resp_set_type(req, "application/json");
+        return httpd_resp_send(req, body_resp, HTTPD_RESP_USE_STRLEN);
+    }
+
+    ESP_LOGI(TAG, "OTA started: url=%s", url);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, "{\"ok\":true}", HTTPD_RESP_USE_STRLEN);
+}
+
 static esp_err_t start_http_server(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -637,10 +745,22 @@ static esp_err_t start_http_server(void)
         .method = HTTP_POST,
         .handler = save_post_handler,
     };
+    httpd_uri_t ota_status = {
+        .uri = "/ota/status",
+        .method = HTTP_GET,
+        .handler = ota_status_get_handler,
+    };
+    httpd_uri_t ota_start = {
+        .uri = "/ota/start",
+        .method = HTTP_POST,
+        .handler = ota_start_post_handler,
+    };
     ESP_RETURN_ON_ERROR(httpd_register_uri_handler(s_httpd, &root), TAG, "register / failed");
     ESP_RETURN_ON_ERROR(httpd_register_uri_handler(s_httpd, &index), TAG, "register /index.html failed");
     ESP_RETURN_ON_ERROR(httpd_register_uri_handler(s_httpd, &status), TAG, "register /status failed");
     ESP_RETURN_ON_ERROR(httpd_register_uri_handler(s_httpd, &save), TAG, "register /save failed");
+    ESP_RETURN_ON_ERROR(httpd_register_uri_handler(s_httpd, &ota_status), TAG, "register /ota/status failed");
+    ESP_RETURN_ON_ERROR(httpd_register_uri_handler(s_httpd, &ota_start), TAG, "register /ota/start failed");
     ESP_LOGI(TAG, "HTTP config server ready at http://192.168.4.1/");
     return ESP_OK;
 }

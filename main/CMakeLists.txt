@@ -7,6 +7,7 @@ idf_component_register(
         "src/modem_4g.c"
         "src/nfc_pn532.c"
         "src/net_eth.c"
+        "src/ota_update.c"
         "src/peripheral_test.c"
         "src/radar_input.c"
         "src/rtc_rx8025t.c"
@@ -21,6 +22,10 @@ idf_component_register(
         esp_netif
         esp_wifi
         esp_http_server
+        esp_http_client
+        esp_https_ota
+        app_update
+        esp-tls
         json
         esp_eth
         driver
