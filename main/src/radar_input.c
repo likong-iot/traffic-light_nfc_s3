@@ -9,6 +9,7 @@
 #include "board_hal.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "pin_map.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -18,21 +19,28 @@ static const char *TAG = "radar_input";
 #define RADAR_TASK_STACK      4096
 #define RADAR_TASK_PRIORITY    3
 #define RADAR_POLL_MS         50
+#define RADAR_STATUS_LOG_INTERVAL_MS 5000
 
 typedef struct {
     bool active;
     bool fired;
     bool noisy;
+    bool continuous_logged;
     uint32_t cycle_start_ms;
     uint32_t fire_at_ms;
     uint32_t cycle_end_ms;
     uint32_t lockout_until_ms;
+    uint32_t last_lockout_log_ms;
     uint32_t noisy_streak;
 } radar_filter_state_t;
 
 typedef struct {
     bool last_in1;
     bool last_in2;
+    int last_raw_in1;
+    int last_raw_in2;
+    bool raw_valid;
+    uint32_t last_status_log_ms;
 } radar_input_state_t;
 
 static TaskHandle_t s_task = NULL;
@@ -59,6 +67,7 @@ static void clear_cycle_locked(void)
     s_filter.active = false;
     s_filter.fired = false;
     s_filter.noisy = false;
+    s_filter.continuous_logged = false;
     s_filter.cycle_start_ms = 0;
     s_filter.fire_at_ms = 0;
     s_filter.cycle_end_ms = 0;
@@ -69,6 +78,7 @@ static void start_cycle_locked(uint32_t now, const app_radar_config_t *cfg)
     s_filter.active = true;
     s_filter.fired = false;
     s_filter.noisy = false;
+    s_filter.continuous_logged = false;
     s_filter.cycle_start_ms = now;
     s_filter.fire_at_ms = now + (uint32_t)cfg->trigger_delay_ms;
     s_filter.cycle_end_ms = now + (uint32_t)cfg->cycle_window_ms;
@@ -124,11 +134,50 @@ static void post_radar_ready(uint32_t timestamp_ms)
     }
 }
 
-static void radar_filter_step(const app_radar_config_t *cfg, bool rising, uint32_t now)
+static void log_periodic_status(const app_radar_config_t *cfg,
+                                const board_inputs_t *inputs,
+                                bool active_in1,
+                                bool active_in2,
+                                uint32_t now)
+{
+    bool filter_active = false;
+    bool filter_fired = false;
+    bool filter_noisy = false;
+    uint32_t noisy_streak = 0;
+    uint32_t delay_left = 0;
+    uint32_t window_left = 0;
+    uint32_t lockout_left = 0;
+
+    xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+    filter_active = s_filter.active;
+    filter_fired = s_filter.fired;
+    filter_noisy = s_filter.noisy;
+    noisy_streak = s_filter.noisy_streak;
+    if (s_filter.active && !s_filter.fired && !time_reached(now, s_filter.fire_at_ms)) {
+        delay_left = s_filter.fire_at_ms - now;
+    }
+    if (s_filter.active && !time_reached(now, s_filter.cycle_end_ms)) {
+        window_left = s_filter.cycle_end_ms - now;
+    }
+    if (!time_reached(now, s_filter.lockout_until_ms)) {
+        lockout_left = s_filter.lockout_until_ms - now;
+    }
+    xSemaphoreGive(s_state_mutex);
+
+    ESP_LOGI(TAG,
+             "radar poll status: IN1(GPIO%d)=%d active=%d IN2(GPIO%d)=%d active=%d enabled=%d active_level=%d filter_active=%d fired=%d noisy=%d noisy_streak=%" PRIu32 " delay_left=%" PRIu32 "ms window_left=%" PRIu32 "ms lockout_left=%" PRIu32 "ms",
+             PIN_IO_IN1, inputs->io_in1, active_in1,
+             PIN_IO_IN2, inputs->io_in2, active_in2,
+             cfg->enabled, cfg->active_level,
+             filter_active, filter_fired, filter_noisy, noisy_streak,
+             delay_left, window_left, lockout_left);
+}
+
+static void radar_filter_step(const app_radar_config_t *cfg, bool level_active, uint32_t now)
 {
     bool post_ready = false;
     bool log_start = false;
-    bool log_repeat = false;
+    bool log_continuous = false;
     bool log_noisy_end = false;
     bool log_lockout = false;
     bool log_ignored_lockout = false;
@@ -151,13 +200,20 @@ static void radar_filter_step(const app_radar_config_t *cfg, bool rising, uint32
         post_ready = true;
     }
 
-    if (rising) {
+    if (level_active) {
         if (!time_reached(now, s_filter.lockout_until_ms)) {
-            log_ignored_lockout = true;
             lockout_left = s_filter.lockout_until_ms - now;
+            if (s_filter.last_lockout_log_ms == 0 ||
+                time_reached(now, s_filter.last_lockout_log_ms + RADAR_STATUS_LOG_INTERVAL_MS)) {
+                s_filter.last_lockout_log_ms = now;
+                log_ignored_lockout = true;
+            }
         } else if (s_filter.active && !time_reached(now, s_filter.cycle_end_ms)) {
             s_filter.noisy = true;
-            log_repeat = true;
+            if (!s_filter.continuous_logged && time_reached(now, s_filter.cycle_start_ms + RADAR_POLL_MS)) {
+                s_filter.continuous_logged = true;
+                log_continuous = true;
+            }
         } else if (!s_filter.active) {
             start_cycle_locked(now, cfg);
             log_start = true;
@@ -174,8 +230,9 @@ static void radar_filter_step(const app_radar_config_t *cfg, bool rising, uint32
         ESP_LOGI(TAG, "radar filter cycle started: delay=%dms window=%dms",
                  cfg->trigger_delay_ms, cfg->cycle_window_ms);
     }
-    if (log_repeat) {
-        ESP_LOGI(TAG, "radar repeated trigger inside filter window (%dms)", cfg->cycle_window_ms);
+    if (log_continuous) {
+        ESP_LOGI(TAG, "radar active level still high inside filter window; cycle marked noisy (%dms)",
+                 cfg->cycle_window_ms);
     }
     if (log_noisy_end) {
         ESP_LOGI(TAG, "radar noisy cycle finished");
@@ -191,8 +248,12 @@ static void radar_filter_step(const app_radar_config_t *cfg, bool rising, uint32
 static void radar_task(void *arg)
 {
     (void)arg;
-    radar_input_state_t input_state = {0};
-    ESP_LOGI(TAG, "radar input task started");
+    radar_input_state_t input_state = {
+        .last_raw_in1 = -1,
+        .last_raw_in2 = -1,
+    };
+    ESP_LOGI(TAG, "radar input task started: polling IO_IN1=GPIO%d IO_IN2=GPIO%d every %dms",
+             PIN_IO_IN1, PIN_IO_IN2, RADAR_POLL_MS);
 
     while (1) {
         app_config_t cfg_copy;
@@ -202,9 +263,28 @@ static void radar_task(void *arg)
             bool in1 = trigger_level(&cfg_copy.radar, inputs.io_in1);
             bool in2 = trigger_level(&cfg_copy.radar, inputs.io_in2);
             uint32_t now = now_ms();
+            bool level_active = in1 || in2;
 
-            bool rising = (in1 && !input_state.last_in1) || (in2 && !input_state.last_in2);
-            radar_filter_step(&cfg_copy.radar, rising, now);
+            if (!input_state.raw_valid ||
+                inputs.io_in1 != input_state.last_raw_in1 ||
+                inputs.io_in2 != input_state.last_raw_in2 ||
+                in1 != input_state.last_in1 ||
+                in2 != input_state.last_in2) {
+                ESP_LOGI(TAG, "radar input change: IN1(GPIO%d)=%d active=%d IN2(GPIO%d)=%d active=%d",
+                         PIN_IO_IN1, inputs.io_in1, in1,
+                         PIN_IO_IN2, inputs.io_in2, in2);
+                input_state.raw_valid = true;
+                input_state.last_raw_in1 = inputs.io_in1;
+                input_state.last_raw_in2 = inputs.io_in2;
+            }
+
+            radar_filter_step(&cfg_copy.radar, level_active, now);
+
+            if (input_state.last_status_log_ms == 0 ||
+                time_reached(now, input_state.last_status_log_ms + RADAR_STATUS_LOG_INTERVAL_MS)) {
+                log_periodic_status(&cfg_copy.radar, &inputs, in1, in2, now);
+                input_state.last_status_log_ms = now;
+            }
 
             input_state.last_in1 = in1;
             input_state.last_in2 = in2;
