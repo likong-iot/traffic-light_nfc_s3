@@ -13,9 +13,15 @@ idf_component_register(
         "src/rtc_rx8025t.c"
         "src/storage_sd.c"
         "src/time_sync.c"
-        "src/web_config.c"
+        "src/web/web_config.c"
     INCLUDE_DIRS
         "include"
+    EMBED_TXTFILES
+        "src/web/www/index.html"
+        "src/web/www/login.html"
+        "src/web/www/style.css"
+        "src/web/www/app.js"
+        "src/web/www/login.js"
     REQUIRES
         nvs_flash
         esp_event

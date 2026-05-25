@@ -25,16 +25,27 @@ static SemaphoreHandle_t s_mutex = NULL;
 static TaskHandle_t s_task = NULL;
 static char s_url[256];
 
-static void ensure_mutex(void)
+static esp_err_t ensure_mutex(void)
 {
     if (s_mutex == NULL) {
         s_mutex = xSemaphoreCreateMutex();
+        if (s_mutex == NULL) {
+            return ESP_ERR_NO_MEM;
+        }
     }
+    return ESP_OK;
+}
+
+esp_err_t ota_update_init(void)
+{
+    return ensure_mutex();
 }
 
 static void status_set(ota_state_t state, int downloaded, int total, const char *msg)
 {
-    ensure_mutex();
+    if (ensure_mutex() != ESP_OK) {
+        return;
+    }
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_status.state = state;
     s_status.bytes_downloaded = downloaded;
@@ -47,7 +58,9 @@ static void status_set(ota_state_t state, int downloaded, int total, const char 
 
 static void status_update_progress(int downloaded, int total)
 {
-    ensure_mutex();
+    if (ensure_mutex() != ESP_OK) {
+        return;
+    }
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_status.bytes_downloaded = downloaded;
     if (total > 0) {
@@ -61,7 +74,12 @@ void ota_update_get_status(ota_status_t *out)
     if (out == NULL) {
         return;
     }
-    ensure_mutex();
+    if (ensure_mutex() != ESP_OK) {
+        memset(out, 0, sizeof(*out));
+        out->state = OTA_STATE_FAILED;
+        strlcpy(out->message, "OTA mutex init failed", sizeof(out->message));
+        return;
+    }
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     *out = s_status;
     xSemaphoreGive(s_mutex);
@@ -180,7 +198,10 @@ esp_err_t ota_update_start(const char *url)
         return ESP_ERR_INVALID_ARG;
     }
 
-    ensure_mutex();
+    esp_err_t mutex_err = ensure_mutex();
+    if (mutex_err != ESP_OK) {
+        return mutex_err;
+    }
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     bool busy = s_status.state == OTA_STATE_DOWNLOADING ||
                 s_status.state == OTA_STATE_VERIFYING;

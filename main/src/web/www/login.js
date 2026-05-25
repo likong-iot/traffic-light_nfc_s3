@@ -1,0 +1,5 @@
+function $(id){return document.getElementById(id);}
+function enc(v){return encodeURIComponent(v==null?'':String(v));}
+function showError(text){var e=$('login_error');e.textContent=text;e.style.display=text?'block':'none';}
+function login(ev){ev.preventDefault();var password=$('password').value;var btn=$('login_btn');btn.disabled=true;showError('');var x=new XMLHttpRequest();x.open('POST','/login',true);x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');x.setRequestHeader('X-Requested-With','XMLHttpRequest');x.onreadystatechange=function(){if(x.readyState!==4)return;btn.disabled=false;if(x.status<200||x.status>=300){showError('登录请求失败：HTTP '+x.status);return;}try{var s=JSON.parse(x.responseText);if(s.ok){location.href='/';}else{showError(s.error||'密码错误');}}catch(e){showError('登录响应解析失败');}};x.onerror=function(){btn.disabled=false;showError('网络请求失败');};x.send('password='+enc(password));return false;}
+$('login_form').onsubmit=login;

@@ -20,6 +20,7 @@ typedef struct {
     char message[128];
 } ota_status_t;
 
+esp_err_t ota_update_init(void);
 esp_err_t ota_update_start(const char *url);
 void ota_update_get_status(ota_status_t *out);
 const char *ota_state_name(ota_state_t state);
