@@ -21,6 +21,7 @@
 #include "radar_input.h"
 #include "storage_sd.h"
 #include "time_sync.h"
+#include "time_utils.h"  // 新增: 64位时间戳工具
 
 static const char *TAG = "app";
 
@@ -38,7 +39,7 @@ static const char *TAG = "app";
 #define APP_LOG_FLUSH_INTERVAL_MS (3600 * 1000)
 #define APP_LOG_MAX_DAYS         200
 #define APP_LOG_DIR              "/NFCLOG"
-#define APP_CONTROL_QUEUE_SIZE    16
+#define APP_CONTROL_QUEUE_SIZE    32  // 修复: 从16增加到32，防止雷达事件丢失
 
 typedef struct {
     time_t timestamp;
@@ -75,19 +76,23 @@ typedef enum {
     LED2_MODE_CLASS3_HOLD,
 } led2_mode_t;
 
+// ============================================================================
+// 应用运行时状态 - 修复: 使用64位时间戳防止溢出
+// 修复日期: 2026-06-02
+// ============================================================================
 typedef struct {
     work_source_t source;
     work_mode_t mode;
-    uint32_t led1_off_at_ms;
+    uint64_t led1_off_at_ms;           // 修复: uint32_t -> uint64_t
     led2_mode_t led2_mode;
-    uint32_t led2_hold_until_ms;
+    uint64_t led2_hold_until_ms;       // 修复: uint32_t -> uint64_t
     bool class3_tail_pending;
-    uint32_t class3_tail_due_ms;
+    uint64_t class3_tail_due_ms;       // 修复: uint32_t -> uint64_t
     bool schedule_state_valid;
     bool schedule_wait_logged;
     bool relay1_closed;
     bool relay2_closed;
-    uint32_t last_schedule_check_ms;
+    uint64_t last_schedule_check_ms;   // 修复: uint32_t -> uint64_t
 } app_runtime_state_t;
 
 static app_runtime_state_t s_runtime = {0};
@@ -237,14 +242,22 @@ static bool same_card_uid(const nfc_card_command_t *card, const uint8_t *last_ui
            memcmp(card->uid, last_uid, card->uid_length) == 0;
 }
 
-static uint32_t now_ms(void)
+// ============================================================================
+// 获取当前时间戳 - 修复: 改用64位版本
+// 修复日期: 2026-06-02
+// ============================================================================
+static uint64_t now_ms(void)
 {
-    return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+    return time_ms_64();
 }
 
-static bool time_reached(uint32_t now, uint32_t deadline)
+// ============================================================================
+// 判断是否到达截止时间 - 修复: 改用64位版本
+// 修复日期: 2026-06-02
+// ============================================================================
+static bool time_reached(uint64_t now, uint64_t deadline)
 {
-    return (int32_t)(now - deadline) >= 0;
+    return time_reached_64(now, deadline);
 }
 
 static bool minute_in_window(int now_min, int start_min, int end_min)
@@ -281,6 +294,14 @@ static const char *work_mode_name(work_mode_t mode)
     default: return "unknown";
     }
 }
+
+// ============================================================================
+// 带重试的继电器设置 - 关键硬件操作改进错误处理
+// 创建日期: 2026-06-02
+// 用途: 继电器是关键控制，失败需要重试
+// 声明: 提前声明以便在后续函数中使用
+// ============================================================================
+static esp_err_t set_relay_with_retry(int relay_num, bool closed, int retries);
 
 static void runtime_set_work_state(work_source_t source, work_mode_t mode)
 {
@@ -323,7 +344,12 @@ static bool runtime_can_enter_radar_state(void)
     return !runtime_has_work_state();
 }
 
-static void runtime_apply_relay_schedule(const app_config_t *cfg, uint32_t now, bool force)
+// ============================================================================
+// 应用继电器时间调度 - 改进错误处理（修复状态一致性问题）
+// 修复日期: 2026-06-02
+// 修复: 继电器设置失败时不更新状态，保持一致性
+// ============================================================================
+static void runtime_apply_relay_schedule(const app_config_t *cfg, uint64_t now, bool force)
 {
     if (cfg == NULL) {
         return;
@@ -354,13 +380,22 @@ static void runtime_apply_relay_schedule(const app_config_t *cfg, uint32_t now, 
                    relay1_closed != s_runtime.relay1_closed ||
                    relay2_closed != s_runtime.relay2_closed;
 
+    // 修复: 继电器设置失败时不更新状态
     if (!s_runtime.schedule_state_valid || relay1_closed != s_runtime.relay1_closed) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(1, relay1_closed));
-        s_runtime.relay1_closed = relay1_closed;
+        esp_err_t err = set_relay_with_retry(1, relay1_closed, 3);
+        if (err == ESP_OK) {
+            s_runtime.relay1_closed = relay1_closed;
+        } else {
+            ESP_LOGE(TAG, "[schedule] relay1 set failed, keeping old state=%d", s_runtime.relay1_closed);
+        }
     }
     if (!s_runtime.schedule_state_valid || relay2_closed != s_runtime.relay2_closed) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(2, relay2_closed));
-        s_runtime.relay2_closed = relay2_closed;
+        esp_err_t err = set_relay_with_retry(2, relay2_closed, 3);
+        if (err == ESP_OK) {
+            s_runtime.relay2_closed = relay2_closed;
+        } else {
+            ESP_LOGE(TAG, "[schedule] relay2 set failed, keeping old state=%d", s_runtime.relay2_closed);
+        }
     }
     s_runtime.schedule_state_valid = true;
 
@@ -373,9 +408,16 @@ static void runtime_apply_relay_schedule(const app_config_t *cfg, uint32_t now, 
     }
 }
 
+// ============================================================================
+// 设置LED1状态 - 改进错误处理
+// 修复日期: 2026-06-02
+// ============================================================================
 static void runtime_set_led1_off(void)
 {
-    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_led1(false));
+    esp_err_t err = board_hal_set_led1(false);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "[led] LED1 off failed (non-critical): %s", esp_err_to_name(err));
+    }
     s_runtime.led1_off_at_ms = 0;
 }
 
@@ -385,15 +427,26 @@ static void runtime_cancel_class3_tail(void)
     s_runtime.class3_tail_due_ms = 0;
 }
 
+// ============================================================================
+// 设置LED2关闭 - 改进错误处理
+// 修复日期: 2026-06-02
+// ============================================================================
 static void runtime_set_led2_off(void)
 {
-    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_led2(false));
+    esp_err_t err = board_hal_set_led2(false);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "[led] LED2 off failed (non-critical): %s", esp_err_to_name(err));
+    }
     s_runtime.led2_mode = LED2_MODE_OFF;
     s_runtime.led2_hold_until_ms = 0;
     runtime_cancel_class3_tail();
 }
 
-static void runtime_set_led1_hold(uint32_t now, int hold_ms)
+// ============================================================================
+// 设置LED1保持时间 - 改进错误处理
+// 修复日期: 2026-06-02
+// ============================================================================
+static void runtime_set_led1_hold(uint64_t now, int hold_ms)
 {
     runtime_set_led2_off();
 
@@ -402,20 +455,34 @@ static void runtime_set_led1_hold(uint32_t now, int hold_ms)
         return;
     }
 
-    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_led1(true));
-    s_runtime.led1_off_at_ms = now + (uint32_t)hold_ms;
+    esp_err_t err = board_hal_set_led1(true);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "[led] LED1 on failed (non-critical): %s", esp_err_to_name(err));
+    }
+    s_runtime.led1_off_at_ms = now + (uint64_t)hold_ms;
 }
 
+// ============================================================================
+// 设置LED2永久点亮 - 改进错误处理
+// 修复日期: 2026-06-02
+// ============================================================================
 static void runtime_set_led2_perm_on(void)
 {
     runtime_set_led1_off();
-    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_led2(true));
+    esp_err_t err = board_hal_set_led2(true);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "[led] LED2 on failed (non-critical): %s", esp_err_to_name(err));
+    }
     s_runtime.led2_mode = LED2_MODE_PERMANENT_ON;
     s_runtime.led2_hold_until_ms = 0;
     runtime_cancel_class3_tail();
 }
 
-static void runtime_start_led2_hold(uint32_t now, int hold_ms)
+// ============================================================================
+// 开始LED2保持时间 - 改进错误处理
+// 修复日期: 2026-06-02
+// ============================================================================
+static void runtime_start_led2_hold(uint64_t now, int hold_ms)
 {
     if (hold_ms <= 0) {
         runtime_set_led2_off();
@@ -423,51 +490,95 @@ static void runtime_start_led2_hold(uint32_t now, int hold_ms)
     }
 
     runtime_set_led1_off();
-    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_led2(true));
+    esp_err_t err = board_hal_set_led2(true);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "[led] LED2 on failed (non-critical): %s", esp_err_to_name(err));
+    }
     s_runtime.led2_mode = LED2_MODE_CLASS3_HOLD;
-    s_runtime.led2_hold_until_ms = now + (uint32_t)hold_ms;
+    s_runtime.led2_hold_until_ms = now + (uint64_t)hold_ms;
     s_runtime.class3_tail_pending = true;
     s_runtime.class3_tail_due_ms = s_runtime.led2_hold_until_ms;
 }
 
+// ============================================================================
+// 带重试的继电器设置 - 关键硬件操作改进错误处理
+// 创建日期: 2026-06-02
+// 用途: 继电器是关键控制，失败需要重试
+// ============================================================================
+static esp_err_t set_relay_with_retry(int relay_num, bool closed, int retries)
+{
+    esp_err_t err = ESP_FAIL;  // 修复: 初始化为ESP_FAIL
+    for (int i = 0; i < retries; i++) {
+        err = board_hal_set_relay(relay_num, closed);
+        if (err == ESP_OK) {
+            return ESP_OK;
+        }
+        ESP_LOGW(TAG, "[relay] Relay%d set to %d failed (attempt %d/%d): %s",
+                 relay_num, closed, i+1, retries, esp_err_to_name(err));
+        vTaskDelay(pdMS_TO_TICKS(10));  // 短暂延时后重试
+    }
+    ESP_LOGE(TAG, "[relay] Relay%d set to %d failed after %d retries",
+             relay_num, closed, retries);
+    return err;
+}
+
+// ============================================================================
+// 发送光耦脉冲 - 关键操作改进错误处理
+// 修复日期: 2026-06-02
+// ============================================================================
 static void runtime_pulse_opto12(int pulse_count)
 {
     if (pulse_count <= 0) {
         pulse_count = 1;
     }
 
-    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_pulse_opto12(pulse_count,
-                                                         APP_IO_PULSE_HIGH_MS,
-                                                         APP_IO_PULSE_LOW_GAP_MS));
+    esp_err_t err = board_hal_pulse_opto12(pulse_count,
+                                           APP_IO_PULSE_HIGH_MS,
+                                           APP_IO_PULSE_LOW_GAP_MS);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "[opto] pulse_opto12 failed (critical): %s", esp_err_to_name(err));
+    }
 }
 
-static void runtime_enter_class1_state(work_source_t source, const app_config_t *cfg, uint32_t now, int pulse_count)
+// ============================================================================
+// 进入类别1状态 - 改进错误处理
+// 修复日期: 2026-06-02
+// ============================================================================
+static void runtime_enter_class1_state(work_source_t source, const app_config_t *cfg, uint64_t now, int pulse_count)
 {
     runtime_set_work_state(source, WORK_MODE_CLASS1);
     runtime_pulse_opto12(pulse_count);
-    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(4, true));
+    set_relay_with_retry(4, true, 3);  // 关键操作，重试3次
     runtime_set_led1_hold(now, cfg->timing.class1_led1_hold_ms);
     if (cfg->timing.class1_led1_hold_ms <= 0) {
         runtime_set_work_state(WORK_SOURCE_NONE, WORK_MODE_IDLE);
     }
 }
 
-static void runtime_enter_class2_state(work_source_t source, const app_config_t *cfg, uint32_t now, int pulse_count)
+// ============================================================================
+// 进入类别2状态 - 改进错误处理
+// 修复日期: 2026-06-02
+// ============================================================================
+static void runtime_enter_class2_state(work_source_t source, const app_config_t *cfg, uint64_t now, int pulse_count)
 {
     runtime_set_work_state(source, WORK_MODE_CLASS2);
     runtime_pulse_opto12(pulse_count);
-    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(4, true));
+    set_relay_with_retry(4, true, 3);  // 关键操作，重试3次
     runtime_set_led1_hold(now, cfg->timing.class2_led1_hold_ms);
     if (cfg->timing.class2_led1_hold_ms <= 0) {
         runtime_set_work_state(WORK_SOURCE_NONE, WORK_MODE_IDLE);
     }
 }
 
-static void runtime_enter_class3_wait_state(work_source_t source, const app_config_t *cfg, uint32_t now, int pulse_count)
+// ============================================================================
+// 进入类别3等待状态 - 改进错误处理
+// 修复日期: 2026-06-02
+// ============================================================================
+static void runtime_enter_class3_wait_state(work_source_t source, const app_config_t *cfg, uint64_t now, int pulse_count)
 {
     runtime_set_work_state(source, WORK_MODE_CLASS3_WAIT);
     runtime_pulse_opto12(pulse_count);
-    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(4, true));
+    set_relay_with_retry(4, true, 3);  // 关键操作，重试3次
     runtime_start_led2_hold(now, cfg->timing.class3_led2_hold_ms);
     if (cfg->timing.class3_led2_hold_ms <= 0) {
         runtime_set_work_state(WORK_SOURCE_NONE, WORK_MODE_IDLE);
@@ -481,12 +592,16 @@ static void runtime_enter_class4_lock_state(work_source_t source, int pulse_coun
     runtime_set_led2_perm_on();
 }
 
+// ============================================================================
+// 进入类别5锁定状态 - 改进错误处理
+// 修复日期: 2026-06-02
+// ============================================================================
 static void runtime_enter_class5_lock_state(work_source_t source, int pulse_count)
 {
     runtime_cancel_class3_tail();
     runtime_set_work_state(source, WORK_MODE_CLASS5_LOCK);
     runtime_pulse_opto12(pulse_count);
-    ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_relay(4, false));
+    set_relay_with_retry(4, false, 3);  // 关键操作，重试3次
     runtime_set_led2_perm_on();
 }
 
@@ -497,17 +612,21 @@ static void runtime_enter_class6_lock_state(work_source_t source, int pulse_coun
     runtime_set_led2_perm_on();
 }
 
-static void runtime_fire_radar_action(const app_config_t *cfg, uint32_t now)
+static void runtime_fire_radar_action(const app_config_t *cfg, uint64_t now)
 {
     ESP_LOGI(TAG, "[radar] firing class-1-equivalent action: OPTO1+OPTO2 x%d",
              cfg->radar.opto12_pulses);
     runtime_enter_class1_state(WORK_SOURCE_RADAR, cfg, now, cfg->radar.opto12_pulses);
 }
 
+// ============================================================================
+// 执行卡片动作 - 添加防御性日志
+// 修复日期: 2026-06-02
+// ============================================================================
 static void runtime_apply_card_action(uint8_t class_id,
                                       int pulse_count,
                                       const app_config_t *cfg,
-                                      uint32_t now)
+                                      uint64_t now)
 {
     if (pulse_count <= 0) {
         pulse_count = (int)class_id;
@@ -533,15 +652,25 @@ static void runtime_apply_card_action(uint8_t class_id,
         runtime_enter_class6_lock_state(WORK_SOURCE_NFC, pulse_count);
         break;
     default:
+        // 修复: 添加防御性日志，便于调试
+        ESP_LOGW(TAG, "[work] Invalid class_id=%u, card action ignored", class_id);
         break;
     }
 }
 
-static void runtime_process_timers(const app_config_t *cfg, uint32_t now)
+// ============================================================================
+// 处理定时器事件 - 包含类别3尾脉冲改进
+// 修复日期: 2026-06-02
+// 改进: 类别3超时后执行完整的类别1动作，而不是单次脉冲
+// ============================================================================
+static void runtime_process_timers(const app_config_t *cfg, uint64_t now)
 {
     (void)cfg;
     if (s_runtime.led1_off_at_ms != 0 && time_reached(now, s_runtime.led1_off_at_ms)) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_set_led1(false));
+        esp_err_t err = board_hal_set_led1(false);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "[timer] LED1 off failed (non-critical): %s", esp_err_to_name(err));
+        }
         s_runtime.led1_off_at_ms = 0;
         if (s_runtime.mode == WORK_MODE_CLASS1 || s_runtime.mode == WORK_MODE_CLASS2) {
             runtime_set_work_state(WORK_SOURCE_NONE, WORK_MODE_IDLE);
@@ -551,13 +680,21 @@ static void runtime_process_timers(const app_config_t *cfg, uint32_t now)
     if (s_runtime.led2_mode == LED2_MODE_CLASS3_HOLD &&
         s_runtime.led2_hold_until_ms != 0 &&
         time_reached(now, s_runtime.led2_hold_until_ms)) {
+
+        // 修复: 类别3超时后执行完整的类别1动作
         if (s_runtime.class3_tail_pending && s_runtime.class3_tail_due_ms != 0 &&
             time_reached(now, s_runtime.class3_tail_due_ms)) {
-            ESP_LOGI(TAG, "[work] class3 hold expired; firing tail pulse once");
-            ESP_ERROR_CHECK_WITHOUT_ABORT(board_hal_pulse_opto12(1,
-                                                                 APP_IO_PULSE_HIGH_MS,
-                                                                 APP_IO_PULSE_LOW_GAP_MS));
+
+            ESP_LOGI(TAG, "[work] class3 hold expired; entering class1 state as tail action");
+
+            // 修复: 先清理类别3状态，再执行类别1动作
+            runtime_set_led2_off();  // 这会调用runtime_cancel_class3_tail()
+
+            // 执行完整的类别1动作（光耦脉冲 + 继电器4 + LED1亮20秒）
+            runtime_enter_class1_state(WORK_SOURCE_NFC, cfg, now, 1);
+            return; // 不再执行下面的状态清理
         }
+
         runtime_set_led2_off();
         if (s_runtime.mode == WORK_MODE_CLASS3_WAIT) {
             runtime_set_work_state(WORK_SOURCE_NONE, WORK_MODE_IDLE);
@@ -565,7 +702,7 @@ static void runtime_process_timers(const app_config_t *cfg, uint32_t now)
     }
 }
 
-static void runtime_handle_radar_ready(uint32_t now, const app_config_t *cfg)
+static void runtime_handle_radar_ready(uint64_t now, const app_config_t *cfg)
 {
     if (!cfg->radar.enabled) {
         return;
@@ -582,7 +719,7 @@ static void runtime_handle_radar_ready(uint32_t now, const app_config_t *cfg)
 
 static void runtime_handle_nfc_card(const nfc_card_command_t *card,
                                     const app_config_t *cfg,
-                                    uint32_t now)
+                                    uint64_t now)
 {
     if (card == NULL) {
         return;
@@ -626,7 +763,7 @@ static void runtime_handle_nfc_card(const nfc_card_command_t *card,
     app_log_enqueue(card, rule_name);
 }
 
-static void runtime_handle_control_events(const app_config_t *cfg, uint32_t now)
+static void runtime_handle_control_events(const app_config_t *cfg, uint64_t now)
 {
     if (s_control_queue == NULL) {
         return;
@@ -656,12 +793,12 @@ static void app_work_task(void *arg)
     uint8_t last_uid[10] = {0};
     uint8_t last_uid_len = 0;
     bool card_latched = false;
-    uint32_t last_status_log_ms = 0;
+    uint64_t last_status_log_ms = 0;  // 修复: uint32_t -> uint64_t
 
     while (1) {
         app_config_copy(&cfg_cache);
 
-        uint32_t now = now_ms();
+        uint64_t now = now_ms();  // 修复: 改为uint64_t防止49天溢出
         runtime_apply_relay_schedule(&cfg_cache, now, false);
         runtime_handle_control_events(&cfg_cache, now);
         runtime_process_timers(&cfg_cache, now);
@@ -687,7 +824,7 @@ static void app_work_task(void *arg)
             }
         }
 
-        now = now_ms();
+        now = now_ms();  // 修复: 已在行792定义，此处更新即可
         if (now - last_status_log_ms >= APP_WORK_LOG_INTERVAL_MS) {
             ESP_LOGI(TAG, "[work] status: STATE=%s/%s NFC=%s SD=%s ETH=%s 4G=%s",
                      work_source_name(s_runtime.source),

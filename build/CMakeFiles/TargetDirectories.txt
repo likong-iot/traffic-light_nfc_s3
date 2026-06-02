@@ -154,6 +154,13 @@
 /home/master/project/traffic-light_nfc_s3/build/esp-idf/esp_bootloader_format/CMakeFiles/install/local.dir
 /home/master/project/traffic-light_nfc_s3/build/esp-idf/esp_bootloader_format/CMakeFiles/install/strip.dir
 /home/master/project/traffic-light_nfc_s3/build/esp-idf/app_update/CMakeFiles/__idf_app_update.dir
+/home/master/project/traffic-light_nfc_s3/build/esp-idf/app_update/CMakeFiles/blank_ota_data.dir
+/home/master/project/traffic-light_nfc_s3/build/esp-idf/app_update/CMakeFiles/read-otadata.dir
+/home/master/project/traffic-light_nfc_s3/build/esp-idf/app_update/CMakeFiles/read_otadata.dir
+/home/master/project/traffic-light_nfc_s3/build/esp-idf/app_update/CMakeFiles/erase-otadata.dir
+/home/master/project/traffic-light_nfc_s3/build/esp-idf/app_update/CMakeFiles/erase_otadata.dir
+/home/master/project/traffic-light_nfc_s3/build/esp-idf/app_update/CMakeFiles/otadata-flash.dir
+/home/master/project/traffic-light_nfc_s3/build/esp-idf/app_update/CMakeFiles/encrypted-otadata-flash.dir
 /home/master/project/traffic-light_nfc_s3/build/esp-idf/app_update/CMakeFiles/edit_cache.dir
 /home/master/project/traffic-light_nfc_s3/build/esp-idf/app_update/CMakeFiles/rebuild_cache.dir
 /home/master/project/traffic-light_nfc_s3/build/esp-idf/app_update/CMakeFiles/list_install_components.dir

@@ -1,4 +1,14 @@
 file(REMOVE_RECURSE
+  "../../app.js.S"
+  "../../index.html.S"
+  "../../login.html.S"
+  "../../login.js.S"
+  "../../style.css.S"
+  "CMakeFiles/__idf_main.dir/__/__/app.js.S.obj"
+  "CMakeFiles/__idf_main.dir/__/__/index.html.S.obj"
+  "CMakeFiles/__idf_main.dir/__/__/login.html.S.obj"
+  "CMakeFiles/__idf_main.dir/__/__/login.js.S.obj"
+  "CMakeFiles/__idf_main.dir/__/__/style.css.S.obj"
   "CMakeFiles/__idf_main.dir/main.c.obj"
   "CMakeFiles/__idf_main.dir/main.c.obj.d"
   "CMakeFiles/__idf_main.dir/src/app.c.obj"
@@ -13,6 +23,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/__idf_main.dir/src/net_eth.c.obj.d"
   "CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj"
   "CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/ota_update.c.obj"
+  "CMakeFiles/__idf_main.dir/src/ota_update.c.obj.d"
   "CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj"
   "CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj.d"
   "CMakeFiles/__idf_main.dir/src/radar_input.c.obj"
@@ -23,13 +35,13 @@ file(REMOVE_RECURSE
   "CMakeFiles/__idf_main.dir/src/storage_sd.c.obj.d"
   "CMakeFiles/__idf_main.dir/src/time_sync.c.obj"
   "CMakeFiles/__idf_main.dir/src/time_sync.c.obj.d"
-  "CMakeFiles/__idf_main.dir/src/web_config.c.obj"
-  "CMakeFiles/__idf_main.dir/src/web_config.c.obj.d"
+  "CMakeFiles/__idf_main.dir/src/web/web_config.c.obj"
+  "CMakeFiles/__idf_main.dir/src/web/web_config.c.obj.d"
   "libmain.a"
   "libmain.pdb"
 )
 
 # Per-language clean rules from dependency scanning.
-foreach(lang C)
+foreach(lang ASM C)
   include(CMakeFiles/__idf_main.dir/cmake_clean_${lang}.cmake OPTIONAL)
 endforeach()

@@ -1,0 +1,61 @@
+Command: ninja all
+[1/15] Generating ../../ota_data_initial.bin
+[2/15] Generating ../../partition_table/partition-table.bin
+Partition table binary generated. Contents:
+*******************************************************************************
+# ESP-IDF Partition Table
+# Name, Type, SubType, Offset, Size, Flags
+nvs,data,nvs,0x9000,24K,
+otadata,data,ota,0xf000,8K,
+phy_init,data,phy,0x11000,4K,
+ota_0,app,ota_0,0x20000,3584K,
+ota_1,app,ota_1,0x3a0000,3584K,
+*******************************************************************************
+[3/15] Generating x509_crt_bundle
+[4/15] Generating ../../x509_crt_bundle.S
+[5/15] Building ASM object esp-idf/mbedtls/CMakeFiles/__idf_mbedtls.dir/__/__/x509_crt_bundle.S.obj
+[6/15] Linking C static library esp-idf/mbedtls/libmbedtls.a
+[7/15] Performing configure step for 'bootloader'
+-- Minimal build - OFF
+-- Building ESP-IDF components for target esp32s3
+-- Project sdkconfig file /home/master/project/traffic-light_nfc_s3/sdkconfig
+-- Compiler supported targets: xtensa-esp-elf
+-- Adding linker script /home/master/esp/v5.5/esp-idf/components/soc/esp32s3/ld/esp32s3.peripherals.ld
+-- Bootloader project name: "bootloader" version: 1
+-- Adding linker script /home/master/esp/v5.5/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ld
+-- Adding linker script /home/master/esp/v5.5/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.api.ld
+-- Adding linker script /home/master/esp/v5.5/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.bt_funcs.ld
+-- Adding linker script /home/master/esp/v5.5/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libgcc.ld
+-- Adding linker script /home/master/esp/v5.5/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.wdt.ld
+-- Adding linker script /home/master/esp/v5.5/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.version.ld
+-- Adding linker script /home/master/esp/v5.5/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libc.ld
+-- Adding linker script /home/master/esp/v5.5/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.newlib.ld
+-- Adding linker script /home/master/esp/v5.5/esp-idf/components/bootloader/subproject/main/ld/esp32s3/bootloader.ld
+-- Adding linker script /home/master/esp/v5.5/esp-idf/components/bootloader/subproject/main/ld/esp32s3/bootloader.rom.ld
+-- Components: bootloader bootloader_support efuse esp_app_format esp_bootloader_format esp_common esp_hw_support esp_rom esp_security esp_system esptool_py freertos hal log main micro-ecc newlib partition_table soc spi_flash xtensa
+-- Component paths: /home/master/esp/v5.5/esp-idf/components/bootloader /home/master/esp/v5.5/esp-idf/components/bootloader_support /home/master/esp/v5.5/esp-idf/components/efuse /home/master/esp/v5.5/esp-idf/components/esp_app_format /home/master/esp/v5.5/esp-idf/components/esp_bootloader_format /home/master/esp/v5.5/esp-idf/components/esp_common /home/master/esp/v5.5/esp-idf/components/esp_hw_support /home/master/esp/v5.5/esp-idf/components/esp_rom /home/master/esp/v5.5/esp-idf/components/esp_security /home/master/esp/v5.5/esp-idf/components/esp_system /home/master/esp/v5.5/esp-idf/components/esptool_py /home/master/esp/v5.5/esp-idf/components/freertos /home/master/esp/v5.5/esp-idf/components/hal /home/master/esp/v5.5/esp-idf/components/log /home/master/esp/v5.5/esp-idf/components/bootloader/subproject/main /home/master/esp/v5.5/esp-idf/components/bootloader/subproject/components/micro-ecc /home/master/esp/v5.5/esp-idf/components/newlib /home/master/esp/v5.5/esp-idf/components/partition_table /home/master/esp/v5.5/esp-idf/components/soc /home/master/esp/v5.5/esp-idf/components/spi_flash /home/master/esp/v5.5/esp-idf/components/xtensa
+-- Configuring done (1.3s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/master/project/traffic-light_nfc_s3/build/bootloader
+[8/15] Performing build step for 'bootloader'
+[1/2] Generating binary image from built executable
+esptool.py v4.9.0
+Creating esp32s3 image...
+Merged 2 ELF sections
+Successfully created esp32s3 image.
+Generated /home/master/project/traffic-light_nfc_s3/build/bootloader/bootloader.bin
+[2/2] cd /home/master/project/traffic-light_nfc_s3/build/bootloader/esp-idf/esptool_py && /home/master/.espressif/python_env/idf5.5_py3.10_env/bin/python /home/master/esp/v5.5/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /home/master/project/traffic-light_nfc_s3/build/bootloader/bootloader.bin
+Bootloader binary size 0x52c0 bytes. 0x2d40 bytes (35%) free.
+[9/15] No install step for 'bootloader'
+[10/15] Completed 'bootloader'
+[11/15] Generating esp-idf/esp_system/ld/sections.ld
+[12/15] Building C object CMakeFiles/traffic-light_nfc_s3.elf.dir/project_elf_src_esp32s3.c.obj
+[13/15] Linking CXX executable traffic-light_nfc_s3.elf
+[14/15] Generating binary image from built executable
+esptool.py v4.9.0
+Creating esp32s3 image...
+Merged 2 ELF sections
+Successfully created esp32s3 image.
+Generated /home/master/project/traffic-light_nfc_s3/build/traffic-light_nfc_s3.bin
+[15/15] cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/esptool_py && /home/master/.espressif/python_env/idf5.5_py3.10_env/bin/python /home/master/esp/v5.5/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /home/master/project/traffic-light_nfc_s3/build/partition_table/partition-table.bin /home/master/project/traffic-light_nfc_s3/build/traffic-light_nfc_s3.bin
+traffic-light_nfc_s3.bin binary size 0x15a3f0 bytes. Smallest app partition is 0x380000 bytes. 0x225c10 bytes (61%) free.

@@ -14,6 +14,9 @@
 # EXTERNAL cache entries
 ########################
 
+//No help, variable specified on the command line.
+CCACHE_ENABLE:UNINITIALIZED=0
+
 //Path to a program.
 CMAKE_ADDR2LINE:FILEPATH=/home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-addr2line
 
@@ -347,6 +350,9 @@ Mbed TLS_IS_TOP_LEVEL:STATIC=OFF
 Mbed TLS_SOURCE_DIR:STATIC=/home/master/esp/v5.5/esp-idf/components/mbedtls/mbedtls
 
 //No help, variable specified on the command line.
+PYTHON:UNINITIALIZED=/home/master/.espressif/python_env/idf5.5_py3.10_env/bin/python
+
+//No help, variable specified on the command line.
 PYTHON_DEPS_CHECKED:UNINITIALIZED=1
 
 //Allow unsafe builds. These builds ARE NOT SECURE.
@@ -591,7 +597,7 @@ EIL_IDF_HAS_ESP_DRIVERS:INTERNAL=TRUE
 //Details about finding Git
 FIND_PACKAGE_MESSAGE_DETAILS_Git:INTERNAL=[/usr/bin/git][v2.34.1()]
 //Details about finding Python3
-FIND_PACKAGE_MESSAGE_DETAILS_Python3:INTERNAL=[/home/master/.espressif/python_env/idf5.5_py3.10_env/bin/python3.10][cfound components: Interpreter ][v3.10.12()]
+FIND_PACKAGE_MESSAGE_DETAILS_Python3:INTERNAL=[/home/master/.espressif/python_env/idf5.5_py3.10_env/bin/python][cfound components: Interpreter ][v3.10.12()]
 //Details about finding Threads
 FIND_PACKAGE_MESSAGE_DETAILS_Threads:INTERNAL=[TRUE][v()]
 //ADVANCED property for variable: GIT_EXECUTABLE
@@ -602,11 +608,10 @@ _GNUInstallDirs_LAST_CMAKE_INSTALL_PREFIX:INTERNAL=/usr/local
 _Python3_Compiler_REASON_FAILURE:INTERNAL=
 //Development reason failure
 _Python3_Development_REASON_FAILURE:INTERNAL=
-//Path to a program.
-_Python3_EXECUTABLE:INTERNAL=/home/master/.espressif/python_env/idf5.5_py3.10_env/bin/python3.10
+_Python3_EXECUTABLE:INTERNAL=/home/master/.espressif/python_env/idf5.5_py3.10_env/bin/python
 //Python3 Properties
 _Python3_INTERPRETER_PROPERTIES:INTERNAL=Python;3;10;12;32;64;;;abi3;/usr/lib/python3.10;/home/master/.espressif/python_env/idf5.5_py3.10_env/lib/python3.10;/home/master/.espressif/python_env/idf5.5_py3.10_env/lib/python3.10/site-packages;/home/master/.espressif/python_env/idf5.5_py3.10_env/lib/python3.10/site-packages
-_Python3_INTERPRETER_SIGNATURE:INTERNAL=6aa992c0223fa46f9a25009ffb723445
+_Python3_INTERPRETER_SIGNATURE:INTERNAL=c65e4c27d2b7a2aa00aa7c1d75647536
 //NumPy reason failure
 _Python3_NumPy_REASON_FAILURE:INTERNAL=
 

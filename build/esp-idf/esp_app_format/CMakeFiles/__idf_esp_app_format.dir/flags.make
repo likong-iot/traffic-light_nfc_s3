@@ -8,5 +8,5 @@ C_INCLUDES = -I/home/master/project/traffic-light_nfc_s3/build/config -I/home/ma
 
 C_FLAGS = -mlongcalls  -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -fno-builtin-stpcpy -fno-builtin-strncpy -g -fdiagnostics-color=always -fdiagnostics-color=always -ffunction-sections -fdata-sections -Wall -Werror=all -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=unused-but-set-variable -Wno-error=deprecated-declarations -Wextra -Wno-error=extra -Wno-unused-parameter -Wno-sign-compare -Wno-enum-conversion -gdwarf-4 -ggdb -mdisable-hardware-atomics -Og -fno-shrink-wrap -fmacro-prefix-map=/home/master/project/traffic-light_nfc_s3=. -fmacro-prefix-map=/home/master/esp/v5.5/esp-idf=/IDF -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -std=gnu17 -Wno-old-style-declaration
 
-# Custom defines: esp-idf/esp_app_format/CMakeFiles/__idf_esp_app_format.dir/esp_app_desc.c.obj_DEFINES = PROJECT_VER="ebf7ed1"; PROJECT_NAME="traffic-light_nfc_s3"
+# Custom defines: esp-idf/esp_app_format/CMakeFiles/__idf_esp_app_format.dir/esp_app_desc.c.obj_DEFINES = PROJECT_VER="1.0.0"; PROJECT_NAME="traffic-light_nfc_s3"
 

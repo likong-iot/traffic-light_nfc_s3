@@ -175,6 +175,46 @@ __idf_main/fast:
 	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/build
 .PHONY : __idf_main/fast
 
+__/__/app.js.obj: __/__/app.js.S.obj
+.PHONY : __/__/app.js.obj
+
+# target to build an object file
+__/__/app.js.S.obj:
+	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/__/__/app.js.S.obj
+.PHONY : __/__/app.js.S.obj
+
+__/__/index.html.obj: __/__/index.html.S.obj
+.PHONY : __/__/index.html.obj
+
+# target to build an object file
+__/__/index.html.S.obj:
+	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/__/__/index.html.S.obj
+.PHONY : __/__/index.html.S.obj
+
+__/__/login.html.obj: __/__/login.html.S.obj
+.PHONY : __/__/login.html.obj
+
+# target to build an object file
+__/__/login.html.S.obj:
+	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.html.S.obj
+.PHONY : __/__/login.html.S.obj
+
+__/__/login.js.obj: __/__/login.js.S.obj
+.PHONY : __/__/login.js.obj
+
+# target to build an object file
+__/__/login.js.S.obj:
+	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.js.S.obj
+.PHONY : __/__/login.js.S.obj
+
+__/__/style.css.obj: __/__/style.css.S.obj
+.PHONY : __/__/style.css.obj
+
+# target to build an object file
+__/__/style.css.S.obj:
+	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/__/__/style.css.S.obj
+.PHONY : __/__/style.css.S.obj
+
 main.obj: main.c.obj
 .PHONY : main.obj
 
@@ -343,6 +383,30 @@ src/nfc_pn532.c.s:
 	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/src/nfc_pn532.c.s
 .PHONY : src/nfc_pn532.c.s
 
+src/ota_update.obj: src/ota_update.c.obj
+.PHONY : src/ota_update.obj
+
+# target to build an object file
+src/ota_update.c.obj:
+	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/src/ota_update.c.obj
+.PHONY : src/ota_update.c.obj
+
+src/ota_update.i: src/ota_update.c.i
+.PHONY : src/ota_update.i
+
+# target to preprocess a source file
+src/ota_update.c.i:
+	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/src/ota_update.c.i
+.PHONY : src/ota_update.c.i
+
+src/ota_update.s: src/ota_update.c.s
+.PHONY : src/ota_update.s
+
+# target to generate assembly for a file
+src/ota_update.c.s:
+	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/src/ota_update.c.s
+.PHONY : src/ota_update.c.s
+
 src/peripheral_test.obj: src/peripheral_test.c.obj
 .PHONY : src/peripheral_test.obj
 
@@ -463,29 +527,29 @@ src/time_sync.c.s:
 	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/src/time_sync.c.s
 .PHONY : src/time_sync.c.s
 
-src/web_config.obj: src/web_config.c.obj
-.PHONY : src/web_config.obj
+src/web/web_config.obj: src/web/web_config.c.obj
+.PHONY : src/web/web_config.obj
 
 # target to build an object file
-src/web_config.c.obj:
-	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/src/web_config.c.obj
-.PHONY : src/web_config.c.obj
+src/web/web_config.c.obj:
+	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/src/web/web_config.c.obj
+.PHONY : src/web/web_config.c.obj
 
-src/web_config.i: src/web_config.c.i
-.PHONY : src/web_config.i
+src/web/web_config.i: src/web/web_config.c.i
+.PHONY : src/web/web_config.i
 
 # target to preprocess a source file
-src/web_config.c.i:
-	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/src/web_config.c.i
-.PHONY : src/web_config.c.i
+src/web/web_config.c.i:
+	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/src/web/web_config.c.i
+.PHONY : src/web/web_config.c.i
 
-src/web_config.s: src/web_config.c.s
-.PHONY : src/web_config.s
+src/web/web_config.s: src/web/web_config.c.s
+.PHONY : src/web/web_config.s
 
 # target to generate assembly for a file
-src/web_config.c.s:
-	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/src/web_config.c.s
-.PHONY : src/web_config.c.s
+src/web/web_config.c.s:
+	cd /home/master/project/traffic-light_nfc_s3/build && $(MAKE) $(MAKESILENT) -f esp-idf/main/CMakeFiles/__idf_main.dir/build.make esp-idf/main/CMakeFiles/__idf_main.dir/src/web/web_config.c.s
+.PHONY : src/web/web_config.c.s
 
 # Help Target
 help:
@@ -500,6 +564,11 @@ help:
 	@echo "... list_install_components"
 	@echo "... rebuild_cache"
 	@echo "... __idf_main"
+	@echo "... __/__/app.js.obj"
+	@echo "... __/__/index.html.obj"
+	@echo "... __/__/login.html.obj"
+	@echo "... __/__/login.js.obj"
+	@echo "... __/__/style.css.obj"
 	@echo "... main.obj"
 	@echo "... main.i"
 	@echo "... main.s"
@@ -521,6 +590,9 @@ help:
 	@echo "... src/nfc_pn532.obj"
 	@echo "... src/nfc_pn532.i"
 	@echo "... src/nfc_pn532.s"
+	@echo "... src/ota_update.obj"
+	@echo "... src/ota_update.i"
+	@echo "... src/ota_update.s"
 	@echo "... src/peripheral_test.obj"
 	@echo "... src/peripheral_test.i"
 	@echo "... src/peripheral_test.s"
@@ -536,9 +608,9 @@ help:
 	@echo "... src/time_sync.obj"
 	@echo "... src/time_sync.i"
 	@echo "... src/time_sync.s"
-	@echo "... src/web_config.obj"
-	@echo "... src/web_config.i"
-	@echo "... src/web_config.s"
+	@echo "... src/web/web_config.obj"
+	@echo "... src/web/web_config.i"
+	@echo "... src/web/web_config.s"
 .PHONY : help
 
 

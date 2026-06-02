@@ -62,12 +62,16 @@ static void app_config_set_defaults(app_config_t *cfg)
     cfg->schedule.relay1_end_min = 7 * 60;
     cfg->schedule.relay2_start_min = 18 * 60;
     cfg->schedule.relay2_end_min = 7 * 60;
+
+    // 雷达配置 - 修复日期: 2026-06-02
     cfg->radar.enabled = true;
     cfg->radar.active_level = 1;
-    cfg->radar.trigger_delay_ms = 2000;
-    cfg->radar.cycle_window_ms = 20000;
-    cfg->radar.interference_cycles = 3;
-    cfg->radar.lockout_ms = 300000;
+    cfg->radar.trigger_delay_ms = 5000;              // 改为5秒延时确认
+    cfg->radar.cycle_window_ms = 20000;              // 20秒窗口
+    cfg->radar.high_level_threshold_ms = 15000;      // 新增：累计高电平15秒
+    cfg->radar.trigger_count_threshold = 5;          // 新增：触发次数5次
+    cfg->radar.interference_cycles = 3;              // 连续3次干扰
+    cfg->radar.lockout_ms = 300000;                  // 锁定10分钟
     cfg->radar.opto12_pulses = 1;
     cfg->log_enabled = true;
 
@@ -244,6 +248,8 @@ static bool load_from_json_text(app_config_t *cfg, const char *json)
         cJSON *active_level = cJSON_GetObjectItemCaseSensitive(radar, "active_level");
         cJSON *trigger_delay_ms = cJSON_GetObjectItemCaseSensitive(radar, "trigger_delay_ms");
         cJSON *cycle_window_ms = cJSON_GetObjectItemCaseSensitive(radar, "cycle_window_ms");
+        cJSON *high_level_threshold_ms = cJSON_GetObjectItemCaseSensitive(radar, "high_level_threshold_ms");  // 新增
+        cJSON *trigger_count_threshold = cJSON_GetObjectItemCaseSensitive(radar, "trigger_count_threshold");  // 新增
         cJSON *interference_cycles = cJSON_GetObjectItemCaseSensitive(radar, "interference_cycles");
         cJSON *lockout_ms = cJSON_GetObjectItemCaseSensitive(radar, "lockout_ms");
         cJSON *opto12_pulses = cJSON_GetObjectItemCaseSensitive(radar, "opto12_pulses");
@@ -251,6 +257,8 @@ static bool load_from_json_text(app_config_t *cfg, const char *json)
         if (active_level != NULL) ok &= parse_int(active_level, &cfg->radar.active_level);
         if (trigger_delay_ms != NULL) ok &= parse_int(trigger_delay_ms, &cfg->radar.trigger_delay_ms);
         if (cycle_window_ms != NULL) ok &= parse_int(cycle_window_ms, &cfg->radar.cycle_window_ms);
+        if (high_level_threshold_ms != NULL) ok &= parse_int(high_level_threshold_ms, &cfg->radar.high_level_threshold_ms);  // 新增
+        if (trigger_count_threshold != NULL) ok &= parse_int(trigger_count_threshold, &cfg->radar.trigger_count_threshold);  // 新增
         if (interference_cycles != NULL) ok &= parse_int(interference_cycles, &cfg->radar.interference_cycles);
         if (lockout_ms != NULL) ok &= parse_int(lockout_ms, &cfg->radar.lockout_ms);
         if (opto12_pulses != NULL) ok &= parse_int(opto12_pulses, &cfg->radar.opto12_pulses);
@@ -363,6 +371,8 @@ static char *create_json_text(const app_config_t *cfg)
     cJSON_AddNumberToObject(radar, "active_level", cfg->radar.active_level);
     cJSON_AddNumberToObject(radar, "trigger_delay_ms", cfg->radar.trigger_delay_ms);
     cJSON_AddNumberToObject(radar, "cycle_window_ms", cfg->radar.cycle_window_ms);
+    cJSON_AddNumberToObject(radar, "high_level_threshold_ms", cfg->radar.high_level_threshold_ms);  // 新增
+    cJSON_AddNumberToObject(radar, "trigger_count_threshold", cfg->radar.trigger_count_threshold);  // 新增
     cJSON_AddNumberToObject(radar, "interference_cycles", cfg->radar.interference_cycles);
     cJSON_AddNumberToObject(radar, "lockout_ms", cfg->radar.lockout_ms);
     cJSON_AddNumberToObject(radar, "opto12_pulses", cfg->radar.opto12_pulses);

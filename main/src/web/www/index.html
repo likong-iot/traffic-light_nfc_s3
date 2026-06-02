@@ -10,6 +10,14 @@
 <div class="layout">
   <nav class="side">
     <h1>NFC路灯控制器</h1>
+    <div class="unit-switch-global">
+      <label class="unit-switch">
+        <span>ms</span>
+        <input type="checkbox" id="radar_unit_s">
+        <span>s</span>
+      </label>
+      <div class="unit-hint">时间单位</div>
+    </div>
     <a href="#time">时间配置</a><a href="#ap">AP配置</a><a href="#nfc">NFC动作</a><a href="#radar">雷达输入</a><a href="#log">NFC日志</a><a href="#status">系统状态</a><a href="#ota">固件升级</a>
     <button class="btn logout" type="button" id="logout_btn">退出登录</button>
   </nav>
@@ -33,9 +41,10 @@
       </section>
       <section id="radar" class="card"><h2>雷达输入</h2>
         <label class="check"><input type="checkbox" name="radar_enabled" value="1"> 启用雷达触发</label>
-        <div class="row"><div><label>有效电平</label><input type="number" name="radar_active" min="0" max="1"></div><div><label>触发延时(ms)</label><input type="number" name="radar_delay" min="0" max="60000"></div></div>
-        <div class="row"><div><label>雷达触发后禁止再次触发时间(ms)</label><input type="number" name="radar_window" min="1000" max="600000"></div><div><label>连续干扰周期数</label><input type="number" name="radar_cycles" min="1" max="20"></div></div>
-        <div class="row"><div><label>OPTO1+OPTO2脉冲数</label><input type="number" name="radar_pulses" min="1" max="20"></div><div><label>雷达锁定时长(ms)</label><input type="number" name="radar_lockout_ms" min="0" max="3600000"></div></div>
+        <div class="row"><div><label>有效电平</label><input type="number" name="radar_active" min="0" max="1"></div><div><label>触发延时<span class="unit-label">(ms)</span></label><input type="number" name="radar_delay" min="0" max="60000" data-unit="time"></div></div>
+        <div class="row"><div><label>雷达触发后禁止再次触发时间<span class="unit-label">(ms)</span></label><input type="number" name="radar_window" min="1000" max="600000" data-unit="time"></div><div><label>累计高电平阈值<span class="unit-label">(ms)</span></label><input type="number" name="radar_high_threshold" min="1000" max="600000" data-unit="time"></div></div>
+        <div class="row"><div><label>触发次数阈值</label><input type="number" name="radar_count_threshold" min="1" max="100"></div><div><label>连续干扰周期数</label><input type="number" name="radar_cycles" min="1" max="20"></div></div>
+        <div class="row"><div><label>OPTO1+OPTO2脉冲数</label><input type="number" name="radar_pulses" min="1" max="20"></div><div><label>雷达锁定时长<span class="unit-label">(ms)</span></label><input type="number" name="radar_lockout_ms" min="0" max="3600000" data-unit="time"></div></div>
       </section>
       <section id="log" class="card"><h2>NFC 日志</h2>
         <p class="hint">启用后每小时将刷卡记录写入 SD 卡 /NFCLOG/ 目录，按日期分文件，保留 200 天。</p>
@@ -45,7 +54,7 @@
         <p>配置来源：<b id="config_source">--</b></p><p>SD卡：<b id="sd_state">--</b></p><p>SoftAP：<b id="ap_state">--</b>，密码：<b id="ap_password_text">--</b></p>
         <p class="warn">配置保存时会同时写 SD 卡和 NVS；如果插入 SD 卡后，SD 文件优先级最高。</p>
       </section>
-      <button class="btn" type="submit">保存全部配置</button>
+      <button class="btn config-submit" type="submit">保存全部配置</button>
     </form>
     <section id="ota" class="card"><h2>固件升级 (OTA)</h2>
       <p>当前版本：<b id="ota_ver">--</b></p>

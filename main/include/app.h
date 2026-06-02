@@ -11,7 +11,7 @@ typedef enum {
 
 typedef struct {
     app_control_event_type_t type;
-    uint32_t timestamp_ms;
+    uint64_t timestamp_ms;  // 修复: 改用64位防止49天溢出
 } app_control_event_t;
 
 typedef struct {

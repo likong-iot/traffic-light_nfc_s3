@@ -69,10 +69,35 @@ include esp-idf/main/CMakeFiles/__idf_main.dir/progress.make
 # Include the compile flags for this target's objects.
 include esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 
+index.html.S: /home/master/project/traffic-light_nfc_s3/main/src/web/www/index.html
+index.html.S: /home/master/esp/v5.5/esp-idf/tools/cmake/scripts/data_file_embed_asm.cmake
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Generating ../../index.html.S"
+	/home/master/.espressif/tools/cmake/3.30.2/bin/cmake -D DATA_FILE=/home/master/project/traffic-light_nfc_s3/main/src/web/www/index.html -D SOURCE_FILE=/home/master/project/traffic-light_nfc_s3/build/index.html.S -D FILE_TYPE=TEXT -P /home/master/esp/v5.5/esp-idf/tools/cmake/scripts/data_file_embed_asm.cmake
+
+login.html.S: /home/master/project/traffic-light_nfc_s3/main/src/web/www/login.html
+login.html.S: /home/master/esp/v5.5/esp-idf/tools/cmake/scripts/data_file_embed_asm.cmake
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Generating ../../login.html.S"
+	/home/master/.espressif/tools/cmake/3.30.2/bin/cmake -D DATA_FILE=/home/master/project/traffic-light_nfc_s3/main/src/web/www/login.html -D SOURCE_FILE=/home/master/project/traffic-light_nfc_s3/build/login.html.S -D FILE_TYPE=TEXT -P /home/master/esp/v5.5/esp-idf/tools/cmake/scripts/data_file_embed_asm.cmake
+
+style.css.S: /home/master/project/traffic-light_nfc_s3/main/src/web/www/style.css
+style.css.S: /home/master/esp/v5.5/esp-idf/tools/cmake/scripts/data_file_embed_asm.cmake
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Generating ../../style.css.S"
+	/home/master/.espressif/tools/cmake/3.30.2/bin/cmake -D DATA_FILE=/home/master/project/traffic-light_nfc_s3/main/src/web/www/style.css -D SOURCE_FILE=/home/master/project/traffic-light_nfc_s3/build/style.css.S -D FILE_TYPE=TEXT -P /home/master/esp/v5.5/esp-idf/tools/cmake/scripts/data_file_embed_asm.cmake
+
+app.js.S: /home/master/project/traffic-light_nfc_s3/main/src/web/www/app.js
+app.js.S: /home/master/esp/v5.5/esp-idf/tools/cmake/scripts/data_file_embed_asm.cmake
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Generating ../../app.js.S"
+	/home/master/.espressif/tools/cmake/3.30.2/bin/cmake -D DATA_FILE=/home/master/project/traffic-light_nfc_s3/main/src/web/www/app.js -D SOURCE_FILE=/home/master/project/traffic-light_nfc_s3/build/app.js.S -D FILE_TYPE=TEXT -P /home/master/esp/v5.5/esp-idf/tools/cmake/scripts/data_file_embed_asm.cmake
+
+login.js.S: /home/master/project/traffic-light_nfc_s3/main/src/web/www/login.js
+login.js.S: /home/master/esp/v5.5/esp-idf/tools/cmake/scripts/data_file_embed_asm.cmake
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Generating ../../login.js.S"
+	/home/master/.espressif/tools/cmake/3.30.2/bin/cmake -D DATA_FILE=/home/master/project/traffic-light_nfc_s3/main/src/web/www/login.js -D SOURCE_FILE=/home/master/project/traffic-light_nfc_s3/build/login.js.S -D FILE_TYPE=TEXT -P /home/master/esp/v5.5/esp-idf/tools/cmake/scripts/data_file_embed_asm.cmake
+
 esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj: /home/master/project/traffic-light_nfc_s3/main/main.c
 esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj -MF CMakeFiles/__idf_main.dir/main.c.obj.d -o CMakeFiles/__idf_main.dir/main.c.obj -c /home/master/project/traffic-light_nfc_s3/main/main.c
 
 esp-idf/main/CMakeFiles/__idf_main.dir/main.c.i: cmake_force
@@ -86,7 +111,7 @@ esp-idf/main/CMakeFiles/__idf_main.dir/main.c.s: cmake_force
 esp-idf/main/CMakeFiles/__idf_main.dir/src/app.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 esp-idf/main/CMakeFiles/__idf_main.dir/src/app.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/app.c
 esp-idf/main/CMakeFiles/__idf_main.dir/src/app.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/app.c.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/app.c.obj"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/app.c.obj -MF CMakeFiles/__idf_main.dir/src/app.c.obj.d -o CMakeFiles/__idf_main.dir/src/app.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/app.c
 
 esp-idf/main/CMakeFiles/__idf_main.dir/src/app.c.i: cmake_force
@@ -100,7 +125,7 @@ esp-idf/main/CMakeFiles/__idf_main.dir/src/app.c.s: cmake_force
 esp-idf/main/CMakeFiles/__idf_main.dir/src/app_config.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 esp-idf/main/CMakeFiles/__idf_main.dir/src/app_config.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/app_config.c
 esp-idf/main/CMakeFiles/__idf_main.dir/src/app_config.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/app_config.c.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/app_config.c.obj"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/app_config.c.obj -MF CMakeFiles/__idf_main.dir/src/app_config.c.obj.d -o CMakeFiles/__idf_main.dir/src/app_config.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/app_config.c
 
 esp-idf/main/CMakeFiles/__idf_main.dir/src/app_config.c.i: cmake_force
@@ -114,7 +139,7 @@ esp-idf/main/CMakeFiles/__idf_main.dir/src/app_config.c.s: cmake_force
 esp-idf/main/CMakeFiles/__idf_main.dir/src/board_hal.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 esp-idf/main/CMakeFiles/__idf_main.dir/src/board_hal.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/board_hal.c
 esp-idf/main/CMakeFiles/__idf_main.dir/src/board_hal.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/board_hal.c.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/board_hal.c.obj"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/board_hal.c.obj -MF CMakeFiles/__idf_main.dir/src/board_hal.c.obj.d -o CMakeFiles/__idf_main.dir/src/board_hal.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/board_hal.c
 
 esp-idf/main/CMakeFiles/__idf_main.dir/src/board_hal.c.i: cmake_force
@@ -128,7 +153,7 @@ esp-idf/main/CMakeFiles/__idf_main.dir/src/board_hal.c.s: cmake_force
 esp-idf/main/CMakeFiles/__idf_main.dir/src/modem_4g.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 esp-idf/main/CMakeFiles/__idf_main.dir/src/modem_4g.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/modem_4g.c
 esp-idf/main/CMakeFiles/__idf_main.dir/src/modem_4g.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/modem_4g.c.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/modem_4g.c.obj"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/modem_4g.c.obj -MF CMakeFiles/__idf_main.dir/src/modem_4g.c.obj.d -o CMakeFiles/__idf_main.dir/src/modem_4g.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/modem_4g.c
 
 esp-idf/main/CMakeFiles/__idf_main.dir/src/modem_4g.c.i: cmake_force
@@ -142,7 +167,7 @@ esp-idf/main/CMakeFiles/__idf_main.dir/src/modem_4g.c.s: cmake_force
 esp-idf/main/CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 esp-idf/main/CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/nfc_pn532.c
 esp-idf/main/CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj -MF CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj.d -o CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/nfc_pn532.c
 
 esp-idf/main/CMakeFiles/__idf_main.dir/src/nfc_pn532.c.i: cmake_force
@@ -156,7 +181,7 @@ esp-idf/main/CMakeFiles/__idf_main.dir/src/nfc_pn532.c.s: cmake_force
 esp-idf/main/CMakeFiles/__idf_main.dir/src/net_eth.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 esp-idf/main/CMakeFiles/__idf_main.dir/src/net_eth.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/net_eth.c
 esp-idf/main/CMakeFiles/__idf_main.dir/src/net_eth.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/net_eth.c.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/net_eth.c.obj"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/net_eth.c.obj -MF CMakeFiles/__idf_main.dir/src/net_eth.c.obj.d -o CMakeFiles/__idf_main.dir/src/net_eth.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/net_eth.c
 
 esp-idf/main/CMakeFiles/__idf_main.dir/src/net_eth.c.i: cmake_force
@@ -167,10 +192,24 @@ esp-idf/main/CMakeFiles/__idf_main.dir/src/net_eth.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/__idf_main.dir/src/net_eth.c.s"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/master/project/traffic-light_nfc_s3/main/src/net_eth.c -o CMakeFiles/__idf_main.dir/src/net_eth.c.s
 
+esp-idf/main/CMakeFiles/__idf_main.dir/src/ota_update.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
+esp-idf/main/CMakeFiles/__idf_main.dir/src/ota_update.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/ota_update.c
+esp-idf/main/CMakeFiles/__idf_main.dir/src/ota_update.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/ota_update.c.obj"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/ota_update.c.obj -MF CMakeFiles/__idf_main.dir/src/ota_update.c.obj.d -o CMakeFiles/__idf_main.dir/src/ota_update.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/ota_update.c
+
+esp-idf/main/CMakeFiles/__idf_main.dir/src/ota_update.c.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing C source to CMakeFiles/__idf_main.dir/src/ota_update.c.i"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/master/project/traffic-light_nfc_s3/main/src/ota_update.c > CMakeFiles/__idf_main.dir/src/ota_update.c.i
+
+esp-idf/main/CMakeFiles/__idf_main.dir/src/ota_update.c.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/__idf_main.dir/src/ota_update.c.s"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/master/project/traffic-light_nfc_s3/main/src/ota_update.c -o CMakeFiles/__idf_main.dir/src/ota_update.c.s
+
 esp-idf/main/CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 esp-idf/main/CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/peripheral_test.c
 esp-idf/main/CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj -MF CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj.d -o CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/peripheral_test.c
 
 esp-idf/main/CMakeFiles/__idf_main.dir/src/peripheral_test.c.i: cmake_force
@@ -184,7 +223,7 @@ esp-idf/main/CMakeFiles/__idf_main.dir/src/peripheral_test.c.s: cmake_force
 esp-idf/main/CMakeFiles/__idf_main.dir/src/radar_input.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 esp-idf/main/CMakeFiles/__idf_main.dir/src/radar_input.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/radar_input.c
 esp-idf/main/CMakeFiles/__idf_main.dir/src/radar_input.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/radar_input.c.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/radar_input.c.obj"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/radar_input.c.obj -MF CMakeFiles/__idf_main.dir/src/radar_input.c.obj.d -o CMakeFiles/__idf_main.dir/src/radar_input.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/radar_input.c
 
 esp-idf/main/CMakeFiles/__idf_main.dir/src/radar_input.c.i: cmake_force
@@ -198,7 +237,7 @@ esp-idf/main/CMakeFiles/__idf_main.dir/src/radar_input.c.s: cmake_force
 esp-idf/main/CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 esp-idf/main/CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/rtc_rx8025t.c
 esp-idf/main/CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.obj"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.obj -MF CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.obj.d -o CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/rtc_rx8025t.c
 
 esp-idf/main/CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.i: cmake_force
@@ -212,7 +251,7 @@ esp-idf/main/CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.s: cmake_force
 esp-idf/main/CMakeFiles/__idf_main.dir/src/storage_sd.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 esp-idf/main/CMakeFiles/__idf_main.dir/src/storage_sd.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/storage_sd.c
 esp-idf/main/CMakeFiles/__idf_main.dir/src/storage_sd.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/storage_sd.c.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/storage_sd.c.obj"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/storage_sd.c.obj -MF CMakeFiles/__idf_main.dir/src/storage_sd.c.obj.d -o CMakeFiles/__idf_main.dir/src/storage_sd.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/storage_sd.c
 
 esp-idf/main/CMakeFiles/__idf_main.dir/src/storage_sd.c.i: cmake_force
@@ -226,7 +265,7 @@ esp-idf/main/CMakeFiles/__idf_main.dir/src/storage_sd.c.s: cmake_force
 esp-idf/main/CMakeFiles/__idf_main.dir/src/time_sync.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
 esp-idf/main/CMakeFiles/__idf_main.dir/src/time_sync.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/time_sync.c
 esp-idf/main/CMakeFiles/__idf_main.dir/src/time_sync.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/time_sync.c.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/time_sync.c.obj"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/time_sync.c.obj -MF CMakeFiles/__idf_main.dir/src/time_sync.c.obj.d -o CMakeFiles/__idf_main.dir/src/time_sync.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/time_sync.c
 
 esp-idf/main/CMakeFiles/__idf_main.dir/src/time_sync.c.i: cmake_force
@@ -237,19 +276,84 @@ esp-idf/main/CMakeFiles/__idf_main.dir/src/time_sync.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/__idf_main.dir/src/time_sync.c.s"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/master/project/traffic-light_nfc_s3/main/src/time_sync.c -o CMakeFiles/__idf_main.dir/src/time_sync.c.s
 
-esp-idf/main/CMakeFiles/__idf_main.dir/src/web_config.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
-esp-idf/main/CMakeFiles/__idf_main.dir/src/web_config.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/web_config.c
-esp-idf/main/CMakeFiles/__idf_main.dir/src/web_config.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/web_config.c.obj"
-	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/web_config.c.obj -MF CMakeFiles/__idf_main.dir/src/web_config.c.obj.d -o CMakeFiles/__idf_main.dir/src/web_config.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/web_config.c
+esp-idf/main/CMakeFiles/__idf_main.dir/src/web/web_config.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
+esp-idf/main/CMakeFiles/__idf_main.dir/src/web/web_config.c.obj: /home/master/project/traffic-light_nfc_s3/main/src/web/web_config.c
+esp-idf/main/CMakeFiles/__idf_main.dir/src/web/web_config.c.obj: esp-idf/main/CMakeFiles/__idf_main.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building C object esp-idf/main/CMakeFiles/__idf_main.dir/src/web/web_config.c.obj"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/src/web/web_config.c.obj -MF CMakeFiles/__idf_main.dir/src/web/web_config.c.obj.d -o CMakeFiles/__idf_main.dir/src/web/web_config.c.obj -c /home/master/project/traffic-light_nfc_s3/main/src/web/web_config.c
 
-esp-idf/main/CMakeFiles/__idf_main.dir/src/web_config.c.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing C source to CMakeFiles/__idf_main.dir/src/web_config.c.i"
-	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/master/project/traffic-light_nfc_s3/main/src/web_config.c > CMakeFiles/__idf_main.dir/src/web_config.c.i
+esp-idf/main/CMakeFiles/__idf_main.dir/src/web/web_config.c.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing C source to CMakeFiles/__idf_main.dir/src/web/web_config.c.i"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/master/project/traffic-light_nfc_s3/main/src/web/web_config.c > CMakeFiles/__idf_main.dir/src/web/web_config.c.i
 
-esp-idf/main/CMakeFiles/__idf_main.dir/src/web_config.c.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/__idf_main.dir/src/web_config.c.s"
-	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/master/project/traffic-light_nfc_s3/main/src/web_config.c -o CMakeFiles/__idf_main.dir/src/web_config.c.s
+esp-idf/main/CMakeFiles/__idf_main.dir/src/web/web_config.c.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/__idf_main.dir/src/web/web_config.c.s"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/master/project/traffic-light_nfc_s3/main/src/web/web_config.c -o CMakeFiles/__idf_main.dir/src/web/web_config.c.s
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/index.html.S.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/index.html.S.obj: index.html.S
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building ASM object esp-idf/main/CMakeFiles/__idf_main.dir/__/__/index.html.S.obj"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -o CMakeFiles/__idf_main.dir/__/__/index.html.S.obj -c /home/master/project/traffic-light_nfc_s3/build/index.html.S
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/index.html.S.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing ASM source to CMakeFiles/__idf_main.dir/__/__/index.html.S.i"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -E /home/master/project/traffic-light_nfc_s3/build/index.html.S > CMakeFiles/__idf_main.dir/__/__/index.html.S.i
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/index.html.S.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling ASM source to assembly CMakeFiles/__idf_main.dir/__/__/index.html.S.s"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -S /home/master/project/traffic-light_nfc_s3/build/index.html.S -o CMakeFiles/__idf_main.dir/__/__/index.html.S.s
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.html.S.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.html.S.obj: login.html.S
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building ASM object esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.html.S.obj"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -o CMakeFiles/__idf_main.dir/__/__/login.html.S.obj -c /home/master/project/traffic-light_nfc_s3/build/login.html.S
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.html.S.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing ASM source to CMakeFiles/__idf_main.dir/__/__/login.html.S.i"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -E /home/master/project/traffic-light_nfc_s3/build/login.html.S > CMakeFiles/__idf_main.dir/__/__/login.html.S.i
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.html.S.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling ASM source to assembly CMakeFiles/__idf_main.dir/__/__/login.html.S.s"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -S /home/master/project/traffic-light_nfc_s3/build/login.html.S -o CMakeFiles/__idf_main.dir/__/__/login.html.S.s
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/style.css.S.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/style.css.S.obj: style.css.S
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Building ASM object esp-idf/main/CMakeFiles/__idf_main.dir/__/__/style.css.S.obj"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -o CMakeFiles/__idf_main.dir/__/__/style.css.S.obj -c /home/master/project/traffic-light_nfc_s3/build/style.css.S
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/style.css.S.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing ASM source to CMakeFiles/__idf_main.dir/__/__/style.css.S.i"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -E /home/master/project/traffic-light_nfc_s3/build/style.css.S > CMakeFiles/__idf_main.dir/__/__/style.css.S.i
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/style.css.S.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling ASM source to assembly CMakeFiles/__idf_main.dir/__/__/style.css.S.s"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -S /home/master/project/traffic-light_nfc_s3/build/style.css.S -o CMakeFiles/__idf_main.dir/__/__/style.css.S.s
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/app.js.S.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/app.js.S.obj: app.js.S
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_23) "Building ASM object esp-idf/main/CMakeFiles/__idf_main.dir/__/__/app.js.S.obj"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -o CMakeFiles/__idf_main.dir/__/__/app.js.S.obj -c /home/master/project/traffic-light_nfc_s3/build/app.js.S
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/app.js.S.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing ASM source to CMakeFiles/__idf_main.dir/__/__/app.js.S.i"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -E /home/master/project/traffic-light_nfc_s3/build/app.js.S > CMakeFiles/__idf_main.dir/__/__/app.js.S.i
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/app.js.S.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling ASM source to assembly CMakeFiles/__idf_main.dir/__/__/app.js.S.s"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -S /home/master/project/traffic-light_nfc_s3/build/app.js.S -o CMakeFiles/__idf_main.dir/__/__/app.js.S.s
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.js.S.obj: esp-idf/main/CMakeFiles/__idf_main.dir/flags.make
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.js.S.obj: login.js.S
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_24) "Building ASM object esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.js.S.obj"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -o CMakeFiles/__idf_main.dir/__/__/login.js.S.obj -c /home/master/project/traffic-light_nfc_s3/build/login.js.S
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.js.S.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing ASM source to CMakeFiles/__idf_main.dir/__/__/login.js.S.i"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -E /home/master/project/traffic-light_nfc_s3/build/login.js.S > CMakeFiles/__idf_main.dir/__/__/login.js.S.i
+
+esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.js.S.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling ASM source to assembly CMakeFiles/__idf_main.dir/__/__/login.js.S.s"
+	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && /home/master/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc $(ASM_DEFINES) $(ASM_INCLUDES) $(ASM_FLAGS) -S /home/master/project/traffic-light_nfc_s3/build/login.js.S -o CMakeFiles/__idf_main.dir/__/__/login.js.S.s
 
 # Object files for target __idf_main
 __idf_main_OBJECTS = \
@@ -260,12 +364,18 @@ __idf_main_OBJECTS = \
 "CMakeFiles/__idf_main.dir/src/modem_4g.c.obj" \
 "CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj" \
 "CMakeFiles/__idf_main.dir/src/net_eth.c.obj" \
+"CMakeFiles/__idf_main.dir/src/ota_update.c.obj" \
 "CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj" \
 "CMakeFiles/__idf_main.dir/src/radar_input.c.obj" \
 "CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.obj" \
 "CMakeFiles/__idf_main.dir/src/storage_sd.c.obj" \
 "CMakeFiles/__idf_main.dir/src/time_sync.c.obj" \
-"CMakeFiles/__idf_main.dir/src/web_config.c.obj"
+"CMakeFiles/__idf_main.dir/src/web/web_config.c.obj" \
+"CMakeFiles/__idf_main.dir/__/__/index.html.S.obj" \
+"CMakeFiles/__idf_main.dir/__/__/login.html.S.obj" \
+"CMakeFiles/__idf_main.dir/__/__/style.css.S.obj" \
+"CMakeFiles/__idf_main.dir/__/__/app.js.S.obj" \
+"CMakeFiles/__idf_main.dir/__/__/login.js.S.obj"
 
 # External object files for target __idf_main
 __idf_main_EXTERNAL_OBJECTS =
@@ -277,15 +387,21 @@ esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/src/board_hal.c.o
 esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/src/modem_4g.c.obj
 esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/src/nfc_pn532.c.obj
 esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/src/net_eth.c.obj
+esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/src/ota_update.c.obj
 esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/src/peripheral_test.c.obj
 esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/src/radar_input.c.obj
 esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/src/rtc_rx8025t.c.obj
 esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/src/storage_sd.c.obj
 esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/src/time_sync.c.obj
-esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/src/web_config.c.obj
+esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/src/web/web_config.c.obj
+esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/__/__/index.html.S.obj
+esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.html.S.obj
+esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/__/__/style.css.S.obj
+esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/__/__/app.js.S.obj
+esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/__/__/login.js.S.obj
 esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/build.make
 esp-idf/main/libmain.a: esp-idf/main/CMakeFiles/__idf_main.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Linking C static library libmain.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/master/project/traffic-light_nfc_s3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_25) "Linking C static library libmain.a"
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && $(CMAKE_COMMAND) -P CMakeFiles/__idf_main.dir/cmake_clean_target.cmake
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/__idf_main.dir/link.txt --verbose=$(VERBOSE)
 
@@ -297,7 +413,11 @@ esp-idf/main/CMakeFiles/__idf_main.dir/clean:
 	cd /home/master/project/traffic-light_nfc_s3/build/esp-idf/main && $(CMAKE_COMMAND) -P CMakeFiles/__idf_main.dir/cmake_clean.cmake
 .PHONY : esp-idf/main/CMakeFiles/__idf_main.dir/clean
 
-esp-idf/main/CMakeFiles/__idf_main.dir/depend:
+esp-idf/main/CMakeFiles/__idf_main.dir/depend: app.js.S
+esp-idf/main/CMakeFiles/__idf_main.dir/depend: index.html.S
+esp-idf/main/CMakeFiles/__idf_main.dir/depend: login.html.S
+esp-idf/main/CMakeFiles/__idf_main.dir/depend: login.js.S
+esp-idf/main/CMakeFiles/__idf_main.dir/depend: style.css.S
 	cd /home/master/project/traffic-light_nfc_s3/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/master/project/traffic-light_nfc_s3 /home/master/project/traffic-light_nfc_s3/main /home/master/project/traffic-light_nfc_s3/build /home/master/project/traffic-light_nfc_s3/build/esp-idf/main /home/master/project/traffic-light_nfc_s3/build/esp-idf/main/CMakeFiles/__idf_main.dir/DependInfo.cmake "--color=$(COLOR)"
 .PHONY : esp-idf/main/CMakeFiles/__idf_main.dir/depend
 

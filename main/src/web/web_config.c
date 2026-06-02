@@ -483,7 +483,7 @@ static esp_err_t config_get_handler(httpd_req_t *req)
                       "\"ap\":{\"ssid\":\"%s\",\"password\":\"%s\"},"
                       "\"schedule\":{\"relay1_start_min\":%d,\"relay1_end_min\":%d,\"relay2_start_min\":%d,\"relay2_end_min\":%d},"
                       "\"timing\":{\"class1_led1_hold_ms\":%d,\"class2_led1_hold_ms\":%d,\"class3_led2_hold_ms\":%d},"
-                      "\"radar\":{\"enabled\":%s,\"active_level\":%d,\"trigger_delay_ms\":%d,\"cycle_window_ms\":%d,\"interference_cycles\":%d,\"opto12_pulses\":%d,\"lockout_ms\":%d},"
+                      "\"radar\":{\"enabled\":%s,\"active_level\":%d,\"trigger_delay_ms\":%d,\"cycle_window_ms\":%d,\"high_level_threshold_ms\":%d,\"trigger_count_threshold\":%d,\"interference_cycles\":%d,\"opto12_pulses\":%d,\"lockout_ms\":%d},"
                       "\"log_enabled\":%s,\"nfc_rules\":[",
                       cfg.version,
                       app_config_source_name(cfg.source),
@@ -504,6 +504,8 @@ static esp_err_t config_get_handler(httpd_req_t *req)
                       cfg.radar.active_level,
                       cfg.radar.trigger_delay_ms,
                       cfg.radar.cycle_window_ms,
+                      cfg.radar.high_level_threshold_ms,     // 新增参数
+                      cfg.radar.trigger_count_threshold,     // 新增参数
                       cfg.radar.interference_cycles,
                       cfg.radar.opto12_pulses,
                       cfg.radar.lockout_ms,
@@ -617,6 +619,8 @@ static bool parse_post_config(char *body, app_config_t *cfg)
     if (!form_get_value(body, "radar_active", value, sizeof(value)) || !parse_int_range(value, 0, 1, &cfg->radar.active_level) ||
         !form_get_value(body, "radar_delay", value, sizeof(value)) || !parse_int_range(value, 0, 60000, &cfg->radar.trigger_delay_ms) ||
         !form_get_value(body, "radar_window", value, sizeof(value)) || !parse_int_range(value, 1000, 600000, &cfg->radar.cycle_window_ms) ||
+        !form_get_value(body, "radar_high_threshold", value, sizeof(value)) || !parse_int_range(value, 1000, 600000, &cfg->radar.high_level_threshold_ms) ||
+        !form_get_value(body, "radar_count_threshold", value, sizeof(value)) || !parse_int_range(value, 1, 100, &cfg->radar.trigger_count_threshold) ||
         !form_get_value(body, "radar_cycles", value, sizeof(value)) || !parse_int_range(value, 1, 20, &cfg->radar.interference_cycles) ||
         !form_get_value(body, "radar_pulses", value, sizeof(value)) || !parse_int_range(value, 1, 20, &cfg->radar.opto12_pulses) ||
         !form_get_value(body, "radar_lockout_ms", value, sizeof(value)) || !parse_int_range(value, 0, 3600000, &cfg->radar.lockout_ms)) {
@@ -705,7 +709,7 @@ static esp_err_t save_post_handler(httpd_req_t *req)
         return err;
     }
 
-    ESP_LOGI(TAG, "config saved: AP=%s NFC rules=%u timing=[%d/%d/%d] radar=%s delay=%dms window=%dms cycles=%d lockout=%dms",
+    ESP_LOGI(TAG, "config saved: AP=%s NFC rules=%u timing=[%d/%d/%d] radar=%s delay=%dms window=%dms high_threshold=%dms count_threshold=%d cycles=%d lockout=%dms",
              cfg.ap.ssid,
              (unsigned)cfg.nfc_rule_count,
              cfg.timing.class1_led1_hold_ms,
@@ -714,6 +718,8 @@ static esp_err_t save_post_handler(httpd_req_t *req)
              cfg.radar.enabled ? "enabled" : "disabled",
              cfg.radar.trigger_delay_ms,
              cfg.radar.cycle_window_ms,
+             cfg.radar.high_level_threshold_ms,
+             cfg.radar.trigger_count_threshold,
              cfg.radar.interference_cycles,
              cfg.radar.lockout_ms);
     if (request_is_xhr(req)) {

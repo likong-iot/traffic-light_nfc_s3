@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "traffic-light_nfc_s3",
-    "project_version":    "2125dc8-dirty",
+    "project_version":    "1.0.0",
     "project_path":       "/home/master/project/traffic-light_nfc_s3",
     "idf_path":           "/home/master/esp/v5.5/esp-idf",
     "build_dir":          "/home/master/project/traffic-light_nfc_s3/build",
@@ -1430,12 +1430,12 @@
             "dir": "/home/master/project/traffic-light_nfc_s3/main",
             "type": "LIBRARY",
             "lib": "__idf_main",
-            "reqs": [ "nvs_flash", "esp_event", "esp_netif", "esp_wifi", "esp_http_server", "json", "esp_eth", "driver", "fatfs", "lwip", "sdmmc", "esp-idf-lib__i2cdev", "esp-idf-lib__pcf8574", "espressif__iot_usbh_cdc", "espressif__iot_usbh_modem", "espressif__modem_at" ],
+            "reqs": [ "nvs_flash", "esp_event", "esp_netif", "esp_wifi", "esp_http_server", "esp_http_client", "esp_https_ota", "app_update", "esp-tls", "json", "esp_eth", "driver", "fatfs", "lwip", "sdmmc", "esp-idf-lib__i2cdev", "esp-idf-lib__pcf8574", "espressif__iot_usbh_cdc", "espressif__iot_usbh_modem", "espressif__modem_at" ],
             "priv_reqs": [ "esp-idf-lib__pcf8574", "espressif__ethernet_init", "espressif__iot_usbh_modem", "garag__esp-idf-pn532" ],
             "managed_reqs": [],
             "managed_priv_reqs": [ "esp-idf-lib__pcf8574", "espressif__ethernet_init", "espressif__iot_usbh_modem", "garag__esp-idf-pn532" ],
             "file": "/home/master/project/traffic-light_nfc_s3/build/esp-idf/main/libmain.a",
-            "sources": [ "/home/master/project/traffic-light_nfc_s3/main/main.c", "/home/master/project/traffic-light_nfc_s3/main/src/app.c", "/home/master/project/traffic-light_nfc_s3/main/src/app_config.c", "/home/master/project/traffic-light_nfc_s3/main/src/board_hal.c", "/home/master/project/traffic-light_nfc_s3/main/src/modem_4g.c", "/home/master/project/traffic-light_nfc_s3/main/src/nfc_pn532.c", "/home/master/project/traffic-light_nfc_s3/main/src/net_eth.c", "/home/master/project/traffic-light_nfc_s3/main/src/peripheral_test.c", "/home/master/project/traffic-light_nfc_s3/main/src/radar_input.c", "/home/master/project/traffic-light_nfc_s3/main/src/rtc_rx8025t.c", "/home/master/project/traffic-light_nfc_s3/main/src/storage_sd.c", "/home/master/project/traffic-light_nfc_s3/main/src/time_sync.c", "/home/master/project/traffic-light_nfc_s3/main/src/web_config.c" ],
+            "sources": [ "/home/master/project/traffic-light_nfc_s3/main/main.c", "/home/master/project/traffic-light_nfc_s3/main/src/app.c", "/home/master/project/traffic-light_nfc_s3/main/src/app_config.c", "/home/master/project/traffic-light_nfc_s3/main/src/board_hal.c", "/home/master/project/traffic-light_nfc_s3/main/src/modem_4g.c", "/home/master/project/traffic-light_nfc_s3/main/src/nfc_pn532.c", "/home/master/project/traffic-light_nfc_s3/main/src/net_eth.c", "/home/master/project/traffic-light_nfc_s3/main/src/ota_update.c", "/home/master/project/traffic-light_nfc_s3/main/src/peripheral_test.c", "/home/master/project/traffic-light_nfc_s3/main/src/radar_input.c", "/home/master/project/traffic-light_nfc_s3/main/src/rtc_rx8025t.c", "/home/master/project/traffic-light_nfc_s3/main/src/storage_sd.c", "/home/master/project/traffic-light_nfc_s3/main/src/time_sync.c", "/home/master/project/traffic-light_nfc_s3/main/src/web/web_config.c", "/home/master/project/traffic-light_nfc_s3/build/index.html.S", "/home/master/project/traffic-light_nfc_s3/build/login.html.S", "/home/master/project/traffic-light_nfc_s3/build/style.css.S", "/home/master/project/traffic-light_nfc_s3/build/app.js.S", "/home/master/project/traffic-light_nfc_s3/build/login.js.S" ],
             "include_dirs": [ "include" ]
         },
         "mbedtls": {
@@ -3132,7 +3132,7 @@
             "prefix": "idf",
             "dir": "/home/master/project/traffic-light_nfc_s3/main",
             "lib": "__idf_main",
-            "reqs": [ "nvs_flash", "esp_event", "esp_netif", "esp_wifi", "esp_http_server", "json", "esp_eth", "driver", "fatfs", "lwip", "sdmmc", "esp-idf-lib__i2cdev", "esp-idf-lib__pcf8574", "espressif__iot_usbh_cdc", "espressif__iot_usbh_modem", "espressif__modem_at" ],
+            "reqs": [ "nvs_flash", "esp_event", "esp_netif", "esp_wifi", "esp_http_server", "esp_http_client", "esp_https_ota", "app_update", "esp-tls", "json", "esp_eth", "driver", "fatfs", "lwip", "sdmmc", "esp-idf-lib__i2cdev", "esp-idf-lib__pcf8574", "espressif__iot_usbh_cdc", "espressif__iot_usbh_modem", "espressif__modem_at" ],
             "priv_reqs": [ "esp-idf-lib__pcf8574", "espressif__ethernet_init", "espressif__iot_usbh_modem", "garag__esp-idf-pn532" ],
             "managed_reqs": [],
             "managed_priv_reqs": [ "esp-idf-lib__pcf8574", "espressif__ethernet_init", "espressif__iot_usbh_modem", "garag__esp-idf-pn532" ],

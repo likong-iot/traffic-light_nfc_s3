@@ -111,6 +111,33 @@ static esp_err_t init_i2c_and_pcf8574(void)
     return ESP_OK;
 }
 
+// ============================================================================
+// 读取PCF8574当前状态 - 用于启动时状态恢复
+// 创建日期: 2026-06-02
+// 用途: 重启后读取硬件实际状态，避免状态不一致
+// 返回: ESP_OK成功, state填充当前端口状态（bit0-7对应P0-P7）
+// ============================================================================
+esp_err_t board_hal_read_pcf_state(uint8_t *state)
+{
+    if (!s_pcf_ready || state == NULL) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (s_pcf_mutex == NULL) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    xSemaphoreTake(s_pcf_mutex, portMAX_DELAY);
+    esp_err_t err = pcf8574_port_read(&s_pcf_dev, state);
+    xSemaphoreGive(s_pcf_mutex);
+
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "PCF8574 state read: 0x%02X", *state);
+    }
+
+    return err;
+}
+
 esp_err_t board_hal_init(void)
 {
     ESP_LOGI(TAG, "=== board_hal_init start ===");
